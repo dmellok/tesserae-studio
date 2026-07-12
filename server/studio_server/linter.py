@@ -30,9 +30,99 @@ def _lines(pattern: str, text: str, flags: int = 0) -> Iterable[tuple[int, re.Ma
         yield text.count("\n", 0, m.start()) + 1, m
 
 
+def sanitize_js(src: str) -> str:
+    """Blank out JS comments and ``'``/``"`` string contents so the pattern
+    rules match real code, not incidental text (a hex in a comment, ``@media``
+    inside a message string, a ``fetch(`` in a doc comment). Blanked spans become
+    spaces, newlines are kept, so line numbers stay exact.
+
+    Template literals (backticks) are preserved verbatim: widget CSS lives there,
+    so blanking them would hide the hex / media-query / animation / font
+    violations these rules are meant to catch. A ``/* identity */`` opt-out is a
+    comment and so is blanked here; the hex rule reads that marker off the raw
+    source, not this sanitized copy.
+    """
+    out: list[str] = []
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        # Line comment: blank to end of line.
+        if c == "/" and i + 1 < n and src[i + 1] == "/":
+            while i < n and src[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        # Block comment: blank to the closing */, keeping newlines.
+        if c == "/" and i + 1 < n and src[i + 1] == "*":
+            while i < n and not (src[i] == "*" and i + 1 < n and src[i + 1] == "/"):
+                out.append("\n" if src[i] == "\n" else " ")
+                i += 1
+            if i < n:  # the '*'
+                out.append(" ")
+                i += 1
+            if i < n:  # the '/'
+                out.append(" ")
+                i += 1
+            continue
+        # Template literal: copy verbatim, tracking ${...} so a backtick inside
+        # an interpolation doesn't close it early.
+        if c == "`":
+            out.append(c)
+            i += 1
+            depth = 0
+            while i < n:
+                ch = src[i]
+                if ch == "\\" and i + 1 < n:
+                    out.append(ch)
+                    out.append(src[i + 1])
+                    i += 2
+                    continue
+                if ch == "`" and depth == 0:
+                    out.append(ch)
+                    i += 1
+                    break
+                if ch == "$" and i + 1 < n and src[i + 1] == "{":
+                    depth += 1
+                    out.append("${")
+                    i += 2
+                    continue
+                if ch == "}" and depth > 0:
+                    depth -= 1
+                    out.append(ch)
+                    i += 1
+                    continue
+                out.append(ch)
+                i += 1
+            continue
+        # Single / double quoted string: keep the quotes, blank the contents.
+        if c in ('"', "'"):
+            out.append(c)
+            i += 1
+            while i < n:
+                ch = src[i]
+                if ch == "\\" and i + 1 < n:
+                    out.append("  ")
+                    i += 2
+                    continue
+                if ch == c:
+                    out.append(ch)
+                    i += 1
+                    break
+                if ch == "\n":  # unterminated; bail at the newline
+                    out.append("\n")
+                    i += 1
+                    break
+                out.append(" ")
+                i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 # -- client.js rules --------------------------------------------------------
 def _r_no_animation(files, manifest):
-    js = files.get("client.js", "")
+    js = sanitize_js(files.get("client.js", ""))
     for pat in (
         r"@keyframes\b",
         r"\btransition(?:-[a-z]+)?\s*:",
@@ -49,7 +139,7 @@ def _r_no_animation(files, manifest):
 
 
 def _r_no_client_fetch(files, manifest):
-    js = files.get("client.js", "")
+    js = sanitize_js(files.get("client.js", ""))
     for line, _ in _lines(r"\bfetch\s*\(|\bXMLHttpRequest\b|new\s+WebSocket", js):
         yield Finding(
             "no-client-fetch",
@@ -69,9 +159,13 @@ def _r_no_client_fetch(files, manifest):
 
 
 def _r_no_hardcoded_hex(files, manifest):
-    js = files.get("client.js", "")
+    raw = files.get("client.js", "")
+    js = sanitize_js(raw)
+    raw_lines = raw.splitlines()
     for line, m in _lines(r"#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b", js):
-        line_text = js.splitlines()[line - 1] if line - 1 < len(js.splitlines()) else ""
+        # Read the opt-out marker off the raw line: sanitize_js blanks the
+        # /* identity */ comment, but line numbers still align.
+        line_text = raw_lines[line - 1] if line - 1 < len(raw_lines) else ""
         if "identity" in line_text.lower():
             continue  # opt-out for genuine data-identity colours (team/brand/flag)
         yield Finding(
@@ -85,7 +179,7 @@ def _r_no_hardcoded_hex(files, manifest):
 
 
 def _r_no_media_queries(files, manifest):
-    js = files.get("client.js", "")
+    js = sanitize_js(files.get("client.js", ""))
     for line, _ in _lines(r"@media\b", js):
         yield Finding(
             "no-media-queries",
@@ -97,7 +191,7 @@ def _r_no_media_queries(files, manifest):
 
 
 def _r_no_custom_fonts(files, manifest):
-    js = files.get("client.js", "")
+    js = sanitize_js(files.get("client.js", ""))
     for line, _ in _lines(r"@font-face\b", js):
         yield Finding(
             "no-custom-fonts", ERROR, "No custom fonts; inherit the page font.", "client.js", line
@@ -117,7 +211,7 @@ def _r_no_custom_fonts(files, manifest):
 
 
 def _r_no_shadow_append(files, manifest):
-    js = files.get("client.js", "")
+    js = sanitize_js(files.get("client.js", ""))
     for line, _ in _lines(r"shadow\s*\.\s*append(Child)?\s*\(", js):
         yield Finding(
             "no-shadow-append",
@@ -174,7 +268,7 @@ def _r_fragment_branching(files, manifest):
 
 
 def _r_phosphor_weight(files, manifest):
-    js = files.get("client.js", "")
+    js = sanitize_js(files.get("client.js", ""))
     for line, _ in _lines(r"\bph-fill\b", js):
         yield Finding(
             "phosphor-weight",
@@ -186,7 +280,7 @@ def _r_phosphor_weight(files, manifest):
 
 
 def _r_no_ad_hoc_border(files, manifest):
-    js = files.get("client.js", "")
+    js = sanitize_js(files.get("client.js", ""))
     for line, m in _lines(r"\bborder(-(top|bottom|left|right))?\s*:\s*([^;{}]+)", js):
         if "none" in m.group(3).lower():
             continue

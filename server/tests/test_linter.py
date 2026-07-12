@@ -3,7 +3,7 @@ its finding, and a clean widget produces none."""
 
 from __future__ import annotations
 
-from studio_server.linter import lint_widget
+from studio_server.linter import lint_widget, sanitize_js
 
 # A clean, fragment-first widget: valid manifest, well-behaved client.js, smoke
 # test, no server. Mutated per test to trip exactly one rule.
@@ -158,6 +158,77 @@ def test_data_schema_when_server():
 def test_smoke_test_expected():
     files = {"client.js": CLEAN_JS}  # no tests/test_smoke.py
     assert "smoke-test" in ids(files, CLEAN_MANIFEST)
+
+
+# -- False positives: pattern rules must see code, not comments/strings -------
+# sanitize_js blanks comments and '/" string contents (keeping line numbers)
+# before the pattern rules run. Template literals are preserved verbatim, since
+# that is where real widget CSS (and its real violations) lives.
+
+
+def test_hex_in_line_comment_not_flagged():
+    files = {**CLEAN_FILES, "client.js": CLEAN_JS + "\n// brand swatch is #ff0000 in the mock"}
+    assert "no-hardcoded-hex" not in ids(files, CLEAN_MANIFEST)
+
+
+def test_hex_in_block_comment_not_flagged():
+    files = {**CLEAN_FILES, "client.js": CLEAN_JS + "\n/* palette note: #abcdef, #123 */"}
+    assert "no-hardcoded-hex" not in ids(files, CLEAN_MANIFEST)
+
+
+def test_hex_in_string_not_flagged():
+    files = {**CLEAN_FILES, "client.js": CLEAN_JS + '\nconst label = "use #ff0000 sparingly";'}
+    assert "no-hardcoded-hex" not in ids(files, CLEAN_MANIFEST)
+
+
+def test_media_in_string_not_flagged():
+    files = {**CLEAN_FILES, "client.js": CLEAN_JS + "\nconst hint = 'avoid @media in widgets';"}
+    assert "no-media-queries" not in ids(files, CLEAN_MANIFEST)
+
+
+def test_fetch_in_comment_not_flagged():
+    files = {**CLEAN_FILES, "client.js": CLEAN_JS + "\n// never call fetch() here; use server.py"}
+    assert "no-client-fetch" not in ids(files, CLEAN_MANIFEST)
+
+
+def test_fetch_in_string_not_flagged():
+    files = {**CLEAN_FILES, "client.js": CLEAN_JS + '\nconst msg = "no fetch() in client.js";'}
+    assert "no-client-fetch" not in ids(files, CLEAN_MANIFEST)
+
+
+def test_real_violations_in_template_literal_still_flagged():
+    # Widget CSS lives in a backtick template; preserving it verbatim is what
+    # keeps these rules working. A hex and an @media there must still fire.
+    css = (
+        "export default function (shadow, ctx) {\n"
+        "  const f = ctx.cell.fragment;\n"
+        "  shadow.innerHTML = `<style>\n"
+        "    .w { color: #ff0000; }\n"
+        "    @media (min-width: 400px) { .w { color: red; } }\n"
+        '  </style><div class="w">${f}</div>`;\n'
+        "}\n"
+    )
+    found = ids({**CLEAN_FILES, "client.js": css}, CLEAN_MANIFEST)
+    assert "no-hardcoded-hex" in found
+    assert "no-media-queries" in found
+
+
+def test_hex_identity_optout_in_template_literal():
+    css = (
+        "export default function (shadow, ctx) {\n"
+        "  const f = ctx.cell.fragment;\n"
+        "  shadow.innerHTML = `<style>.team{ color: #ff0000; /* identity */ }</style>${f}`;\n"
+        "}\n"
+    )
+    assert "no-hardcoded-hex" not in ids({**CLEAN_FILES, "client.js": css}, CLEAN_MANIFEST)
+
+
+def test_sanitize_js_preserves_line_numbers():
+    src = "a;\n/* multi\nline\ncomment */\n'string with\\nescape';\n`template #ff0000`;\n"
+    out = sanitize_js(src)
+    assert src.count("\n") == out.count("\n")
+    assert "#ff0000" in out  # template literal preserved verbatim
+    assert "multi" not in out  # block comment blanked
 
 
 def test_manifest_schema_validation():
