@@ -141,5 +141,18 @@ point `STUDIO_WORKDIR` at a scratch directory for real authoring.
 
 ```sh
 cd server && pytest        # server unit tests
+cd web && npm test         # front-end unit tests (Vitest)
 cd web && npm run build    # typecheck + build the front end
+cd web && npm run lint     # eslint
 ```
+
+CI (`.github/workflows/ci.yml`) runs the server tests + ruff on a Python 3.11/3.12
+matrix and the front-end lint, build, and tests on a Node 18/20 matrix.
+
+## Parked: WYSIWYG visual editor
+
+A structured visual editor (a fragment-aware tree of Spectra-styled flex containers that
+generates lint-clean, container-query `client.js`) was prototyped but is **parked**: not
+wired into the app, not bundled, not shipped. The authoring path is the MCP server driving
+an agent. The code lives on the `parked/wysiwyg` branch; to revive it, move it back under
+`web/src/` and re-add the Design-mode wiring in `main.ts`.

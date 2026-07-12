@@ -5,7 +5,7 @@ import tseslint from "typescript-eslint";
 // so it stays fast and quiet). tsc --noEmit (via `npm run build`) is the source of
 // truth for types; eslint just catches the lint-class mistakes tsc ignores.
 export default tseslint.config(
-  { ignores: ["dist/", "wysiwyg-parked/", "*.config.js"] },
+  { ignores: ["dist/", "*.config.js"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
