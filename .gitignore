@@ -21,3 +21,7 @@ web/src/*.js
 
 # Studio working dir (generated widgets live here in M1+)
 /widgets/
+
+# Local-only authoring docs, kept on disk but not published
+/CLAUDE.md
+/docs/
