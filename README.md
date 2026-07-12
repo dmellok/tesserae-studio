@@ -1,18 +1,11 @@
 # tesserae-studio
 
-Author **Tesserae widgets** end to end: a code editor, a WYSIWYG canvas, and an
-MCP-driven LLM loop that finishes at an open PR in the widget catalog. Studio is a
-separate repo that connects to a running Tesserae for render fidelity and the widget
-registry.
+Author **Tesserae widgets** end to end: a code editor with live and faithful preview, a
+widget linter, data-schema mining, and an **MCP authoring server** that an agent (Claude
+Code / Desktop) drives from scaffold to a registered, rendering widget. Studio is a separate
+repo that connects to a running Tesserae for render fidelity and the widget registry.
 
 ## Status
-
-**M4 (WYSIWYG):** a visual **Design** mode (toggle in the editor) builds a widget as a
-fragment-aware tree of Spectra-styled flex containers and elements (stack / text / stat /
-icon), edited via a palette, outline, and property panel (token colours, `cqmin` sizes, data
-bindings). It generates lint-clean, container-query `client.js` live, so the widget reflows
-at any cell size, and the model round-trips (embedded in the file), so Design and Code stay
-in sync. Structured flex, not absolute positioning, because widgets must reflow.
 
 **M2 (in progress):** scaffold new widgets and duplicate existing ones into the workspace,
 with a live widget linter. "New widget" generates a fragment-first, lint-clean widget

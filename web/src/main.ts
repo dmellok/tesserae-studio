@@ -15,17 +15,6 @@ import {
   writeFile,
 } from "./api";
 import type { LintFinding, MineResult } from "./api";
-import { generateClientJs, parseLayout } from "./wysiwyg/codegen";
-import { renderDesign, type DesignHandlers } from "./wysiwyg/design";
-import {
-  type Layout,
-  type StackNode,
-  findNode,
-  moveNode,
-  newNode,
-  removeNode,
-  starterLayout,
-} from "./wysiwyg/model";
 import { mountWidget } from "./mount";
 import { WidgetEditor, type OpenFile } from "./editor";
 import type { Config, FileEntry, Fragment, Widget } from "./types";
@@ -45,11 +34,6 @@ interface State {
   sourceCache: Map<string, string>; // widget data source per render (live/sample/none)
   tier: "interactive" | "faithful";
   faithful: boolean; // is the faithful render tier available (mcp reachable)
-  mode: "code" | "design"; // editor mode for the active widget's client.js
-  layout: Layout | null; // WYSIWYG model when the widget is visual
-  designFragment: string;
-  selectedId: string | null;
-  bindOptions: string[]; // data field paths for binding dropdowns
   version: number; // mount cache-bust, bumped on save
   files: FileEntry[];
   activeFile?: string;
@@ -64,11 +48,6 @@ const state: State = {
   sourceCache: new Map(),
   tier: "interactive",
   faithful: false,
-  mode: "code",
-  layout: null,
-  designFragment: "full",
-  selectedId: null,
-  bindOptions: [],
   version: 0,
   files: [],
 };
@@ -129,10 +108,6 @@ app.innerHTML = `
       <div class="pane-head">
         <span class="pane-title" id="editor-widget">—</span>
         <span class="pane-sub" id="editor-sub"></span>
-        <div class="mode-toggle" id="mode-toggle" hidden>
-          <button class="mode-btn active" id="mode-code">Code</button>
-          <button class="mode-btn" id="mode-design">Design</button>
-        </div>
         <button class="pill register" id="register-btn" hidden><span class="dot"></span><span id="register-text"></span></button>
         <button class="pill mine" id="mine-btn" hidden><i class="ph-bold ph-magic-wand"></i> Mine schema</button>
         <button class="pill" id="lint-pill" hidden><span class="dot"></span><span id="lint-text"></span></button>
@@ -143,7 +118,6 @@ app.innerHTML = `
         <div class="monaco" id="monaco"></div>
         <div class="editor-empty" id="editor-empty" hidden></div>
       </div>
-      <div class="design-surface" id="design-surface" hidden></div>
       <div class="mine-panel" id="mine-panel" hidden></div>
       <div class="lint-panel" id="lint-panel" hidden></div>
     </section>
@@ -186,13 +160,6 @@ registerBtn.addEventListener("click", () => void toggleRegister());
 const mineBtn = $<HTMLButtonElement>("mine-btn");
 const minePanel = $<HTMLDivElement>("mine-panel");
 mineBtn.addEventListener("click", () => void runMine());
-const modeToggle = $<HTMLDivElement>("mode-toggle");
-const modeCodeBtn = $<HTMLButtonElement>("mode-code");
-const modeDesignBtn = $<HTMLButtonElement>("mode-design");
-const designSurface = $<HTMLDivElement>("design-surface");
-const editorWrap = document.querySelector<HTMLDivElement>(".editor-wrap")!;
-modeCodeBtn.addEventListener("click", () => setMode("code"));
-modeDesignBtn.addEventListener("click", () => void enterDesignMode());
 
 const editor = new WidgetEditor($<HTMLDivElement>("monaco"));
 editor.onDirtyChange(() => {
@@ -426,97 +393,6 @@ async function toggleRegister() {
   }
 }
 
-// -- WYSIWYG design mode ---------------------------------------------------
-function setMode(mode: "code" | "design") {
-  state.mode = mode;
-  modeCodeBtn.classList.toggle("active", mode === "code");
-  modeDesignBtn.classList.toggle("active", mode === "design");
-  const design = mode === "design";
-  designSurface.hidden = !design;
-  editorWrap.hidden = design;
-  tabsEl.hidden = design;
-  if (design) renderDesignSurface();
-  else editor.show("client.js");
-}
-
-async function enterDesignMode() {
-  const w = state.widget;
-  if (!w?.editable) return;
-  let layout = parseLayout(editor.value("client.js"));
-  if (!layout) {
-    if (!window.confirm("Start a visual layout? This replaces client.js with generated code. You can switch back to Code anytime."))
-      return;
-    const ids = (w.fragments || []).map((f) => f.id);
-    layout = starterLayout(ids.length ? ids : ["full"]);
-  }
-  state.layout = layout;
-  state.designFragment =
-    w.fragments?.find((f) => layout!.fragments[f.id])?.id ?? Object.keys(layout.fragments)[0] ?? "full";
-  state.selectedId = null;
-  try {
-    const d = await getWidgetData(w.key);
-    state.bindOptions = (d.fields || []).map((f) => f.path);
-  } catch {
-    state.bindOptions = [];
-  }
-  setMode("design");
-  onDesignChange(); // ensure client.js + preview reflect the layout
-}
-
-function designHandlers(): DesignHandlers {
-  const root = () => state.layout!.fragments[state.designFragment];
-  return {
-    layout: state.layout!,
-    fragment: state.designFragment,
-    selectedId: state.selectedId,
-    bindOptions: state.bindOptions,
-    setFragment: (id) => { state.designFragment = id; state.selectedId = null; renderDesignSurface(); },
-    select: (id) => { state.selectedId = id; renderDesignSurface(); },
-    add: (type) => {
-      const sel = state.selectedId ? findNode(root(), state.selectedId) : null;
-      const target = (sel && sel.type === "stack" ? sel : root()) as StackNode;
-      const node = newNode(type);
-      target.children.push(node);
-      state.selectedId = node.id;
-      onDesignChange();
-    },
-    remove: (id) => {
-      if (id === root().id) return; // keep the fragment root
-      removeNode(root(), id);
-      if (state.selectedId === id) state.selectedId = null;
-      onDesignChange();
-    },
-    move: (id, d) => { moveNode(root(), id, d); onDesignChange(); },
-    changed: () => onDesignChange(),
-  };
-}
-
-function renderDesignSurface() {
-  if (state.layout) renderDesign(designSurface, designHandlers());
-}
-
-let designSaveTimer = 0;
-function onDesignChange() {
-  if (!state.layout || !state.widget) return;
-  editor.setValue("client.js", generateClientJs(state.layout)); // keep Monaco in sync
-  renderDesignSurface();
-  window.clearTimeout(designSaveTimer);
-  designSaveTimer = window.setTimeout(async () => {
-    const w = state.widget;
-    if (!w) return;
-    try {
-      await writeFile(w.key, "client.js", editor.value("client.js"));
-      editor.markSaved("client.js");
-      renderTabs();
-      state.version = Date.now();
-      await render();
-      await runLint(w);
-    } catch (err) {
-      setNote(`Design save failed: ${err instanceof Error ? err.message : String(err)}`, "err");
-    }
-  }, 350);
-}
-
 // -- mine_data_schema ------------------------------------------------------
 async function runMine() {
   const w = state.widget;
@@ -683,8 +559,6 @@ async function loadEditor(widget: Widget) {
     registerBtn.hidden = true;
     mineBtn.hidden = true;
     minePanel.hidden = true;
-    modeToggle.hidden = true;
-    resetToCodeMode();
     return;
   }
   emptyEl.hidden = true;
@@ -716,21 +590,6 @@ async function loadEditor(widget: Widget) {
   renderRegister(widget);
   mineBtn.hidden = false;
   minePanel.hidden = true;
-  modeToggle.hidden = false;
-  resetToCodeMode();
-}
-
-// Return the editor to Code mode without forcing a file switch (used when
-// loading a widget so design state from a previous widget doesn't leak).
-function resetToCodeMode() {
-  state.mode = "code";
-  state.layout = null;
-  state.selectedId = null;
-  modeCodeBtn.classList.add("active");
-  modeDesignBtn.classList.remove("active");
-  designSurface.hidden = true;
-  editorWrap.hidden = false;
-  tabsEl.hidden = false;
 }
 
 async function save() {
