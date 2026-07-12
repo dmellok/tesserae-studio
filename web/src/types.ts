@@ -17,6 +17,7 @@ export interface Widget {
   fragments: Fragment[];
   editable?: boolean; // true for widgets in the workspace
   origin?: string; // "workspace" | "disk" | "live" | ...
+  kind?: string; // "widget" | "data" | "admin" (companion plugins)
   synced?: boolean; // symlinked into Tesserae's marketplace
   registered?: boolean; // live in the running Tesserae registry
 }

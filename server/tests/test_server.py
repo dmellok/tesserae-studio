@@ -432,6 +432,54 @@ def test_push_error_surfaced(push_client):
     assert r.status_code == 409 and "bundled" in r.json()["error"]
 
 
+# -- bundles (M5) -----------------------------------------------------------
+def test_scaffold_bundle_creates_core_and_members(ws_client):
+    r = ws_client.post("/studio/api/scaffold-bundle", json={
+        "name": "News", "members": [{"name": "Headlines"}, {"name": "Ticker"}],
+    }).json()
+    assert r["ok"] and r["core"] == "news_core"
+    assert r["members"] == ["news_headlines", "news_ticker"]
+    # Core is a data companion with an admin template + choices/blueprint server.
+    core_files = {f["path"] for f in ws_client.get("/studio/api/files/news_core").json()["files"]}
+    assert {"plugin.json", "server.py", "templates/news_core/index.html"} <= core_files
+    core_manifest = json.loads(ws_client.get("/studio/api/files/news_core/plugin.json").json()["content"])
+    assert core_manifest["kind"] == "data"
+    core_server = ws_client.get("/studio/api/files/news_core/server.py").json()["content"]
+    assert "def choices(" in core_server and "def blueprint(" in core_server and "def get_data(" in core_server
+
+
+def test_bundle_member_wired_to_core(ws_client):
+    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    manifest = json.loads(ws_client.get("/studio/api/files/news_headlines/plugin.json").json()["content"])
+    assert manifest["kind"] == "widget"
+    opt = manifest["cell_options"][0]
+    assert opt["type"] == "multiselect" and opt["choices_from"] == "items"
+    server = ws_client.get("/studio/api/files/news_headlines/server.py").json()["content"]
+    assert 'PLUGIN_REGISTRY"].get(CORE_ID)' in server
+    assert 'news_core plugin not installed' in server
+
+
+def test_bundle_core_in_catalog_but_not_widget_kind(ws_client):
+    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    widgets = {w["key"]: w for w in ws_client.get("/studio/api/catalog").json()["widgets"]}
+    assert widgets["news_core"]["kind"] == "data" and widgets["news_core"]["editable"] is True
+    assert widgets["news_headlines"]["kind"] == "widget"
+
+
+def test_lint_skips_companion_core(ws_client):
+    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    lint = ws_client.get("/studio/api/lint/news_core").json()
+    assert lint["errors"] == 0 and lint["warnings"] == 0 and "companion" in lint.get("note", "")
+    # the member widget still lints clean
+    assert ws_client.get("/studio/api/lint/news_headlines").json()["errors"] == 0
+
+
+def test_scaffold_bundle_rejects_clash(ws_client):
+    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    again = ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    assert again.status_code == 400 and "already exist" in again.json()["error"]
+
+
 # -- mine_data_schema -------------------------------------------------------
 @pytest.fixture
 def mine_client(tmp_path):

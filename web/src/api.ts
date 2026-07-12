@@ -46,6 +46,16 @@ export const scaffoldWidget = (spec: ScaffoldSpec) =>
     body: JSON.stringify(spec),
   });
 
+export const scaffoldBundle = (spec: {
+  name: string;
+  members: Array<{ name: string }>;
+  admin: boolean;
+}) =>
+  getJson<{ ok: boolean; core: string; members: string[]; folders: string[] }>(
+    "/studio/api/scaffold-bundle",
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(spec) },
+  );
+
 export const duplicateWidget = (source: string, name?: string) =>
   getJson<{ ok: boolean; key: string; files: string[] }>("/studio/api/duplicate", {
     method: "POST",

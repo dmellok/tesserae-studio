@@ -10,6 +10,7 @@ import {
   mineSchema,
   readFile,
   registerWidget,
+  scaffoldBundle,
   scaffoldWidget,
   unregisterWidget,
   writeFile,
@@ -80,7 +81,23 @@ app.innerHTML = `
     <div class="field dim"><label for="w">Width</label><input id="w" type="number" min="20" max="2000" value="640" /></div>
     <div class="field dim"><label for="h">Height</label><input id="h" type="number" min="20" max="2000" value="400" /></div>
     <button class="btn ghost" id="new-widget"><i class="ph-bold ph-plus"></i> New widget</button>
+    <button class="btn ghost" id="new-bundle"><i class="ph-bold ph-stack"></i> New bundle</button>
   </div>
+  <dialog id="bundle-dialog" class="dialog">
+    <form method="dialog" id="bundle-form">
+      <h2>New bundle</h2>
+      <p class="d-hint">A shared <code>&lt;name&gt;_core</code> companion (with an admin page) plus member widgets that read it.</p>
+      <div class="field"><label for="bd-name">Bundle name</label>
+        <input id="bd-name" type="text" placeholder="e.g. News" required /></div>
+      <div class="field"><label for="bd-members">Members (one per line)</label>
+        <textarea id="bd-members" rows="3" placeholder="Headlines&#10;Ticker"></textarea></div>
+      <label class="check"><input id="bd-admin" type="checkbox" checked /> Include admin page (blueprint)</label>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" id="bd-cancel">Cancel</button>
+        <button type="submit" class="btn" id="bd-create">Create</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="new-dialog" class="dialog">
     <form method="dialog" id="new-form">
       <h2>New widget</h2>
@@ -306,8 +323,25 @@ async function dataFor(widget: Widget): Promise<unknown> {
   }
 }
 
+function isWidgetKind(w: Widget): boolean {
+  return !w.kind || w.kind === "widget";
+}
+
 async function render() {
   if (!state.widget || !state.fragment) return;
+
+  // Companion plugins (a bundle's _core, kind data) don't render as widgets.
+  if (!isWidgetKind(state.widget)) {
+    frame.textContent = "";
+    setSourceChip("");
+    badge.textContent = state.widget.kind ?? "companion";
+    setNote(
+      `${state.widget.name} is a companion plugin (${state.widget.kind}). It has no widget render; configure it on its admin page in Tesserae, and register it so member widgets can read it.`,
+      "",
+    );
+    return;
+  }
+
   const dims = resolveDims();
   syncDimInputs(dims);
   badge.textContent = `${state.fragment.id} · ${dims.w}×${dims.h}`;
@@ -586,10 +620,13 @@ async function loadEditor(widget: Widget) {
   state.activeFile = preferred;
   renderTabs();
   saveBtn.disabled = true;
-  void runLint(widget);
-  renderRegister(widget);
-  mineBtn.hidden = false;
+  renderRegister(widget); // cores register too, so members can read them
   minePanel.hidden = true;
+  // Lint + mine are widget-only; a companion core is edited as plain files.
+  const widgetKind = isWidgetKind(widget);
+  mineBtn.hidden = !widgetKind;
+  if (widgetKind) void runLint(widget);
+  else lintPill.hidden = true;
 }
 
 async function save() {
@@ -677,6 +714,35 @@ async function createWidget(spec: { name: string; archetype: string; server: boo
     setNote(`Created ${res.key} (${res.files.length} files). Edit and save to preview.`, "");
   } catch (err) {
     setNote(`Scaffold failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+  }
+}
+
+// -- new bundle ------------------------------------------------------------
+const bundleDialog = $<HTMLDialogElement>("bundle-dialog");
+$<HTMLButtonElement>("new-bundle").addEventListener("click", () => bundleDialog.showModal());
+$<HTMLButtonElement>("bd-cancel").addEventListener("click", () => bundleDialog.close());
+$<HTMLFormElement>("bundle-form").addEventListener("submit", () => {
+  const name = $<HTMLInputElement>("bd-name").value.trim();
+  if (!name) return;
+  const members = $<HTMLTextAreaElement>("bd-members").value
+    .split("\n").map((s) => s.trim()).filter(Boolean).map((n) => ({ name: n }));
+  const admin = $<HTMLInputElement>("bd-admin").checked;
+  void createBundle({ name, members: members.length ? members : [{ name: "Items" }], admin });
+});
+
+async function createBundle(spec: { name: string; members: Array<{ name: string }>; admin: boolean }) {
+  try {
+    const res = await scaffoldBundle(spec);
+    await refreshCatalog(res.members[0] ?? res.core);
+    await selectWidget(res.members[0] ?? res.core);
+    $<HTMLInputElement>("bd-name").value = "";
+    $<HTMLTextAreaElement>("bd-members").value = "";
+    setNote(
+      `Created bundle: ${res.core} + ${res.members.join(", ")}. Register the core and each member with Tesserae for the family to work.`,
+      "",
+    );
+  } catch (err) {
+    setNote(`Bundle scaffold failed: ${err instanceof Error ? err.message : String(err)}`, "err");
   }
 }
 

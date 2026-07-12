@@ -7,6 +7,14 @@ repo that connects to a running Tesserae for render fidelity and the widget regi
 
 ## Status
 
+**M5 (bundles + admin pages):** scaffold a widget **bundle**, a shared `<name>_core` companion
+(`kind: data`, with `choices()`, shared data functions, and a Flask `blueprint()` admin page
+under `templates/<id>/`) plus member widgets wired to it (their `fetch()` reaches the core via
+the plugin registry, and a `choices_from` cell option offers the core's items). Follows
+Tesserae's real family pattern (`calendar_core`, `ha_core`). The core is editable in Studio as
+a companion plugin (no widget render); members preview and lint like any widget. "New bundle"
+in the toolbar, or the `scaffold_bundle` MCP tool.
+
 **M2 (in progress):** scaffold new widgets and duplicate existing ones into the workspace,
 with a live widget linter. "New widget" generates a fragment-first, lint-clean widget
 (manifest validated against `plugin.schema.json`, `client.js` branching on
@@ -78,10 +86,11 @@ Tesserae. Pick a widget, a fragment, and a size to preview it.
 ## MCP authoring server
 
 Studio exposes its authoring loop as an MCP server, so an agent drives the work: `list_widgets`,
-`scaffold_widget`, `read_file`/`write_file`, `lint_widget`, `mine_data_schema`,
-`register_widget`, `widget_data`, and `faithful_render` (which returns the e-ink PNG as an
-image). It is a thin client over the running Studio backend, so **start the server above
-first** (`uvicorn studio_server.app:app`), then point your MCP client at:
+`scaffold_widget`, `scaffold_bundle`, `duplicate_widget`, `read_file`/`write_file`,
+`lint_widget`, `mine_data_schema`, `register_widget`, `widget_data`, and `faithful_render`
+(which returns the e-ink PNG as an image). It is a thin client over the running Studio backend,
+so **start the server above first** (`uvicorn studio_server.app:app`), then point your MCP
+client at:
 
 ```jsonc
 // Claude Desktop / Code: mcpServers config

@@ -115,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 **catalog_entry(w["key"], w["manifest"]),
                 "editable": True,
                 "origin": "workspace",
+                "kind": w["manifest"].get("kind", "widget"),
                 "synced": is_synced(marketplace, wsroot, w["key"]),
                 "registered": w["key"] in live_keys,
             }
@@ -181,6 +182,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (ScaffoldError, WorkspaceError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({"ok": True, **result})
+
+    @app.post("/studio/api/scaffold-bundle")
+    async def scaffold_bundle(spec: dict = Body(...)) -> JSONResponse:
+        from .bundle import scaffold_bundle_files
+
+        name = str(spec.get("name") or "").strip()
+        if not name:
+            return JSONResponse({"error": "name is required"}, status_code=400)
+        try:
+            core_id, member_ids, folders = scaffold_bundle_files(
+                name, spec.get("members") or None, admin=spec.get("admin", True) is not False,
+            )
+        except ScaffoldError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        ws = app.state.workspace
+        # All-or-nothing: refuse if any folder id already exists.
+        clashes = [fid for fid in folders if (ws.root / fid).exists()]
+        if clashes:
+            return JSONResponse({"error": f"already exist: {', '.join(clashes)}"}, status_code=400)
+        try:
+            for fid, files in folders.items():
+                ws.create_widget(fid, files)
+        except WorkspaceError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, "core": core_id, "members": member_ids, "folders": list(folders)})
 
     @app.post("/studio/api/duplicate")
     async def duplicate(spec: dict = Body(...)) -> JSONResponse:
@@ -440,6 +466,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             bad = [{"rule": "manifest-json", "level": "error",
                     "message": f"plugin.json is not valid JSON: {exc}", "file": "plugin.json", "line": exc.lineno}]
             return JSONResponse({"widget": widget, "findings": bad, "errors": 1, "warnings": 0})
+        if manifest.get("kind") not in (None, "widget"):
+            # Companion plugins (data/admin) aren't widgets; the widget rules
+            # (client.js, fragments, ...) don't apply.
+            return JSONResponse({"widget": widget, "findings": [], "errors": 0, "warnings": 0,
+                                 "note": f"companion plugin (kind {manifest.get('kind')}); not linted as a widget"})
         findings = lint_widget(files, manifest, schema=_load_schema())
         errors = sum(1 for f in findings if f["level"] == "error")
         return JSONResponse(

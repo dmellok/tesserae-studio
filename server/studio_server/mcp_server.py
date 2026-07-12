@@ -94,6 +94,18 @@ async def scaffold_widget(
 
 
 @mcp.tool()
+async def scaffold_bundle(name: str, members: list[dict] | None = None, admin: bool = True) -> dict:
+    """Scaffold a widget bundle: a shared <name>_core companion (kind data, with
+    choices() + an admin blueprint) plus member widgets wired to it. members is a
+    list of {name, icon?}; defaults to one member. Returns the core + member ids.
+    Register the core and each member with Tesserae for the family to work live."""
+    body: dict[str, Any] = {"name": name, "admin": admin}
+    if members:
+        body["members"] = members
+    return await _json("POST", "/studio/api/scaffold-bundle", json=body)
+
+
+@mcp.tool()
 async def duplicate_widget(source: str, name: str | None = None) -> dict:
     """Copy an existing widget (workspace or a connected Tesserae reference
     widget) into the workspace as a new editable widget."""
