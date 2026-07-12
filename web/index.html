@@ -12,6 +12,14 @@
          inside the widgets' shadow roots, exactly as templates/_base.html does. -->
     <link rel="stylesheet" href="/static/style/base.css" />
     <link rel="stylesheet" href="/static/style/forms.css" />
+    <!-- Spectra widget tokens + typographic style axis, linked at the document
+         level exactly as templates/compose.html does. These define --surface,
+         --text-primary, --accent-1..6, etc. on :root (light theme by default);
+         CSS custom properties inherit through the shadow boundary, so every
+         previewed widget is themed. Without these the widgets render un-themed
+         (plain black on white). -->
+    <link rel="stylesheet" href="/static/style/spectra-tokens.css" />
+    <link rel="stylesheet" href="/static/style/spectra-styles.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/regular/style.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/bold/style.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/fill/style.css" />
