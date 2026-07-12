@@ -44,6 +44,15 @@ class Settings:
     # running instance. A live Tesserae is only required for real fetch() data
     # and faithful (e-ink) render.
     tesserae_path: Path | None
+    # The connected Tesserae's data root. Its ``marketplace/`` subdir is an
+    # additional plugins dir Tesserae scans, so symlinking a workspace widget
+    # there (then restarting Tesserae) registers it for live data + faithful
+    # render. None when unknown.
+    tesserae_data_root: Path | None
+
+    @property
+    def marketplace_dir(self) -> Path | None:
+        return (self.tesserae_data_root / "marketplace") if self.tesserae_data_root else None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -64,4 +73,17 @@ class Settings:
         else:
             path = _autodetect_tesserae_path()
 
-        return cls(tesserae_url=url, port=port, workdir=workdir, tesserae_path=path)
+        # Tesserae's data root: explicit env, else <checkout>/data (its default
+        # when TESSERAE_DATA_ROOT is unset). Used to register synced widgets.
+        raw_data_root = os.environ.get("STUDIO_TESSERAE_DATA_ROOT")
+        if raw_data_root:
+            data_root: Path | None = Path(raw_data_root).expanduser()
+        elif path is not None:
+            data_root = path / "data"
+        else:
+            data_root = None
+
+        return cls(
+            tesserae_url=url, port=port, workdir=workdir,
+            tesserae_path=path, tesserae_data_root=data_root,
+        )

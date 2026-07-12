@@ -53,6 +53,19 @@ export const duplicateWidget = (source: string, name?: string) =>
     body: JSON.stringify({ source, name }),
   });
 
+export interface SyncState {
+  ok: boolean;
+  synced: boolean;
+  registered: boolean;
+  needs_reload: boolean;
+}
+
+export const syncWidget = (widget: string) =>
+  getJson<SyncState>(`/studio/api/sync/${encodeURIComponent(widget)}`, { method: "POST" });
+
+export const unsyncWidget = (widget: string) =>
+  getJson<SyncState>(`/studio/api/sync/${encodeURIComponent(widget)}`, { method: "DELETE" });
+
 export interface LintFinding {
   rule: string;
   level: "error" | "warning";

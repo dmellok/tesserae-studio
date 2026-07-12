@@ -17,6 +17,8 @@ export interface Widget {
   fragments: Fragment[];
   editable?: boolean; // true for widgets in the workspace
   origin?: string; // "workspace" | "disk" | "live" | ...
+  synced?: boolean; // symlinked into Tesserae's marketplace
+  registered?: boolean; // live in the running Tesserae registry
 }
 
 export interface FileEntry {
@@ -51,8 +53,9 @@ export interface SizePreset {
 
 export interface Config {
   tesserae_url: string;
+  tesserae_path: string | null;
+  tesserae_data_root: string | null;
   sizes: Record<string, SizePreset>;
-  features: Record<string, boolean>;
 }
 
 // GET /studio/api/widgets/<key>/data (mode-agnostic: live fetch or disk sample)

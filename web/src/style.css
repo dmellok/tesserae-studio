@@ -108,8 +108,12 @@
 .tab.active { color: var(--t-fg); border-bottom-color: var(--t-accent); background: var(--t-surface); }
 .tab-dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--t-accent); }
 
-.pane-head #lint-pill { margin-left: auto; cursor: pointer; }
+.pane-head #sync-btn { margin-left: auto; cursor: pointer; }
+.pane-head #sync-btn + #lint-pill { margin-left: var(--t-space-2); }
+.pane-head #lint-pill:first-of-type { margin-left: auto; }
 .pane-head .btn { margin-left: var(--t-space-2); }
+/* neutral "Sync to Tesserae" pill uses the accent so it reads as an action */
+.pill.sync:not(.ok):not(.warn) { color: var(--t-accent-ink); background: var(--t-accent-soft); border-color: var(--t-accent-tint); }
 
 .editor-wrap { flex: 1; min-height: 0; position: relative; }
 .monaco { position: absolute; inset: 0; }

@@ -18,7 +18,10 @@ with a live widget linter. "New widget" generates a fragment-first, lint-clean w
 read-only reference widget so you can edit it. The **linter** encodes the Golden Rules
 (no client fetch, no hard-coded hex, container queries not media queries, idempotent render,
 declared egress, and more) and shows findings inline in the editor, on load and every save.
-Still to come in M2: `mine_data_schema` and faithful `/_test/render` preview.
+**Sync to Tesserae** symlinks a workspace widget into Tesserae's `marketplace/` and marks it
+registered once Tesserae reloads, so an authored widget with a `server.py` gets **live
+`fetch()` data** in the preview (a source chip shows live vs sample vs empty). Still to come
+in M2: `mine_data_schema` and faithful `/_test/render` preview.
 
 **M1 (Editor):** a Monaco multi-file editor over a working directory, side by side with the
 live preview. Open a widget's `plugin.json` (validated live against Tesserae's
@@ -71,6 +74,7 @@ Tesserae. Pick a widget, a fragment, and a size to preview it.
 | Env var                | Default                  | Purpose                                      |
 | ---------------------- | ------------------------ | -------------------------------------------- |
 | `STUDIO_TESSERAE_PATH` | autodetect `../tesserae` | Disk checkout for assets + catalog (standalone) |
+| `STUDIO_TESSERAE_DATA_ROOT` | `<checkout>/data`   | Tesserae data root; its `marketplace/` is where synced widgets are registered |
 | `STUDIO_TESSERAE_URL`  | `http://localhost:8765`  | Live Tesserae for data + faithful render     |
 | `STUDIO_PORT`          | `8770`                   | Thin server port                             |
 | `STUDIO_WORKDIR`       | `<repo>/examples`        | Working dir of widgets being authored        |

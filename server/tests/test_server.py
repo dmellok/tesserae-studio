@@ -42,7 +42,7 @@ def _make_client(settings: Settings) -> TestClient:
 def live_client(tmp_path):
     """No disk checkout: assets + catalog come from the (mock) live instance."""
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=None
+        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=None, tesserae_data_root=None
     )
     c = _make_client(settings)
     yield c
@@ -75,7 +75,7 @@ def disk_client(tmp_path):
     core.joinpath("plugin.json").write_text(json.dumps({"kind": "companion", "name": "Fonts"}))
 
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=checkout
+        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=checkout, tesserae_data_root=None
     )
     c = _make_client(settings)
     # Force the live probe to fail, proving disk mode is self-sufficient.
@@ -151,7 +151,7 @@ def ws_client(tmp_path):
         json.dumps({"kind": "widget", "name": "Mine", "icon": "ph-star", "fragments": []})
     )
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None
+        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None, tesserae_data_root=None
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = httpx.MockTransport(
@@ -263,6 +263,73 @@ def test_duplicate_widget_into_workspace(ws_client):
     assert r.status_code == 200 and r.json()["key"] == "my_fork"
     files = ws_client.get("/studio/api/files/my_fork").json()["files"]
     assert {"client.js", "plugin.json"} <= {f["path"] for f in files}
+
+
+# -- sync to Tesserae (symlink into marketplace) ----------------------------
+@pytest.fixture
+def sync_client(tmp_path):
+    wdir = tmp_path / "work"
+    widget = wdir / "mywidget"
+    widget.mkdir(parents=True)
+    widget.joinpath("client.js").write_text("export default () => {}")
+    widget.joinpath("plugin.json").write_text(json.dumps({"kind": "widget", "name": "Mine"}))
+    data_root = tmp_path / "tess-data"  # marketplace/ created on sync
+    settings = Settings(
+        tesserae_url="http://tess.test", port=8770, workdir=wdir,
+        tesserae_path=None, tesserae_data_root=data_root,
+    )
+    c = _make_client(settings)
+    c.app.state.tesserae.raw._transport = httpx.MockTransport(lambda req: httpx.Response(404))
+    yield c, tmp_path
+    c.__exit__(None, None, None)
+
+
+def test_sync_creates_symlink_into_marketplace(sync_client):
+    c, tmp_path = sync_client
+    r = c.post("/studio/api/sync/mywidget").json()
+    assert r["ok"] and r["synced"] is True
+    # No live registry (mock 404s) -> not registered, needs a reload.
+    assert r["registered"] is False and r["needs_reload"] is True
+    link = tmp_path / "tess-data" / "marketplace" / "mywidget"
+    assert link.is_symlink()
+    assert link.resolve() == (tmp_path / "work" / "mywidget").resolve()
+
+
+def test_catalog_reports_synced(sync_client):
+    c, _ = sync_client
+    c.post("/studio/api/sync/mywidget")
+    mine = [w for w in c.get("/studio/api/catalog").json()["widgets"] if w["key"] == "mywidget"][0]
+    assert mine["synced"] is True and mine["registered"] is False
+
+
+def test_unsync_removes_symlink(sync_client):
+    c, tmp_path = sync_client
+    c.post("/studio/api/sync/mywidget")
+    r = c.delete("/studio/api/sync/mywidget").json()
+    assert r["ok"] and r["synced"] is False
+    assert not (tmp_path / "tess-data" / "marketplace" / "mywidget").exists()
+
+
+def test_sync_refuses_foreign_marketplace_entry(sync_client):
+    c, tmp_path = sync_client
+    # A real (non-symlink) folder already occupying the id must not be clobbered.
+    foreign = tmp_path / "tess-data" / "marketplace" / "mywidget"
+    foreign.mkdir(parents=True)
+    (foreign / "plugin.json").write_text("{}")
+    assert c.post("/studio/api/sync/mywidget").status_code == 400
+    assert not (foreign).is_symlink()  # untouched
+
+
+def test_unsync_guard_rejects_foreign_symlink(tmp_path):
+    from studio_server.sync import SyncError, unsync
+
+    market = tmp_path / "market"
+    market.mkdir()
+    (tmp_path / "elsewhere").mkdir()
+    (market / "w").symlink_to(tmp_path / "elsewhere")  # points outside the workspace
+    with pytest.raises(SyncError):
+        unsync(market, tmp_path / "work", "w")
+    assert (market / "w").is_symlink()  # not removed
 
 
 # -- unit -------------------------------------------------------------------

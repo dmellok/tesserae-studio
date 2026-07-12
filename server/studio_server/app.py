@@ -18,6 +18,9 @@ from .proxy import forward
 from .linter import lint_widget
 from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
 from .source import TesseraeSource, catalog_entry
+from .sync import SyncError, is_synced
+from .sync import sync as sync_widget
+from .sync import unsync as unsync_widget
 from .tesserae import TesseraeClient
 from .workspace import Workspace, WorkspaceError
 
@@ -74,16 +77,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             {
                 "tesserae_url": settings.tesserae_url,
                 "tesserae_path": str(settings.tesserae_path) if settings.tesserae_path else None,
+                "tesserae_data_root": str(settings.tesserae_data_root) if settings.tesserae_data_root else None,
                 "sizes": {k: {"w": w, "h": h} for k, (w, h) in SIZE_DIMENSIONS.items()},
             }
         )
 
+    async def _live_keys() -> set[str]:
+        """Widget keys the *running* Tesserae registry knows about, for
+        registered-detection. Empty when the live MCP API is unreachable."""
+        status = await app.state.source.status()
+        if not status["mcp"]:
+            return set()
+        try:
+            live = await app.state.tesserae.catalog()
+            return {w["key"] for w in live.get("widgets", [])}
+        except Exception:  # noqa: BLE001
+            return set()
+
     @app.get("/studio/api/catalog")
     async def catalog() -> JSONResponse:
         # Workspace widgets (editable, authored here) merge in front of the
-        # read-only tesserae widgets and shadow any that share a key.
+        # read-only tesserae widgets and shadow any that share a key. Each also
+        # reports whether it is synced (symlinked into Tesserae) and registered
+        # (live in the running registry).
+        marketplace = settings.marketplace_dir
+        wsroot = app.state.workspace.root
+        live_keys = await _live_keys()
         ws_entries = [
-            {**catalog_entry(w["key"], w["manifest"]), "editable": True, "origin": "workspace"}
+            {
+                **catalog_entry(w["key"], w["manifest"]),
+                "editable": True,
+                "origin": "workspace",
+                "synced": is_synced(marketplace, wsroot, w["key"]),
+                "registered": w["key"] in live_keys,
+            }
             for w in app.state.workspace.list_widgets()
         ]
         try:
@@ -170,6 +197,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except (ScaffoldError, WorkspaceError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({"ok": True, "key": key, "files": written})
+
+    # ---- Register a workspace widget with Tesserae (symlink) -------------
+    async def _sync_state(widget: str) -> dict:
+        synced = is_synced(settings.marketplace_dir, app.state.workspace.root, widget)
+        registered = widget in (await _live_keys())
+        return {
+            "widget": widget,
+            "synced": synced,
+            "registered": registered,
+            # Symlinked but not yet in the live registry: Tesserae must restart
+            # to pick it up (same "restart to activate" model as its marketplace).
+            "needs_reload": synced and not registered,
+        }
+
+    @app.post("/studio/api/sync/{widget}")
+    async def sync_endpoint(widget: str) -> JSONResponse:
+        try:
+            sync_widget(settings.marketplace_dir, app.state.workspace.root, widget)
+        except SyncError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, **(await _sync_state(widget))})
+
+    @app.delete("/studio/api/sync/{widget}")
+    async def unsync_endpoint(widget: str) -> JSONResponse:
+        try:
+            unsync_widget(settings.marketplace_dir, app.state.workspace.root, widget)
+        except SyncError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, **(await _sync_state(widget))})
 
     # ---- Manifest schema for Monaco JSON validation ----------------------
     def _load_schema() -> dict | None:

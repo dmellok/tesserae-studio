@@ -9,6 +9,8 @@ import {
   lintWidget,
   readFile,
   scaffoldWidget,
+  syncWidget,
+  unsyncWidget,
   writeFile,
 } from "./api";
 import type { LintFinding } from "./api";
@@ -101,6 +103,7 @@ app.innerHTML = `
       <div class="pane-head">
         <span class="pane-title" id="editor-widget">—</span>
         <span class="pane-sub" id="editor-sub"></span>
+        <button class="pill sync" id="sync-btn" hidden><span class="dot"></span><span id="sync-text"></span></button>
         <button class="pill" id="lint-pill" hidden><span class="dot"></span><span id="lint-text"></span></button>
         <button class="btn" id="save" disabled>Save <kbd>⌘S</kbd></button>
       </div>
@@ -141,6 +144,9 @@ const lintPanel = $<HTMLDivElement>("lint-panel");
 lintPill.addEventListener("click", () => {
   if (lintPanel.innerHTML) lintPanel.hidden = !lintPanel.hidden;
 });
+const syncBtn = $<HTMLButtonElement>("sync-btn");
+const syncText = $<HTMLSpanElement>("sync-text");
+syncBtn.addEventListener("click", () => void toggleSync());
 
 const editor = new WidgetEditor($<HTMLDivElement>("monaco"));
 editor.onDirtyChange(() => {
@@ -252,6 +258,47 @@ async function render() {
   }
 }
 
+// -- sync to Tesserae ------------------------------------------------------
+function renderSync(widget: Widget) {
+  const canSync = !!state.config?.tesserae_data_root;
+  if (!widget.editable || !canSync) {
+    syncBtn.hidden = true;
+    return;
+  }
+  syncBtn.hidden = false;
+  syncBtn.classList.remove("ok", "warn");
+  if (widget.registered) {
+    syncBtn.classList.add("ok");
+    syncText.textContent = "registered · live";
+    syncBtn.title = "Live in Tesserae (real data + faithful render). Click to unsync.";
+  } else if (widget.synced) {
+    syncBtn.classList.add("warn");
+    syncText.textContent = "synced · restart Tesserae";
+    syncBtn.title = "Symlinked into Tesserae. Restart Tesserae to register it. Click to unsync.";
+  } else {
+    syncText.textContent = "Sync to Tesserae";
+    syncBtn.title = "Symlink this widget into Tesserae for live data + faithful render.";
+  }
+}
+
+async function toggleSync() {
+  const w = state.widget;
+  if (!w?.editable) return;
+  try {
+    const res = w.synced ? await unsyncWidget(w.key) : await syncWidget(w.key);
+    await refreshCatalog(w.key); // pick up fresh synced/registered flags
+    if (state.widget) renderSync(state.widget);
+    if (res.needs_reload)
+      setNote(`Synced ${w.key}. Restart Tesserae to register it (then it gets live data + faithful render).`, "warn");
+    else if (res.registered) setNote(`${w.key} is registered and live.`, "");
+    else setNote(`Unsynced ${w.key}.`, "");
+    state.version = Date.now(); // re-evaluate the data source (live vs sample)
+    await render();
+  } catch (err) {
+    setNote(`Sync failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+  }
+}
+
 // -- lint ------------------------------------------------------------------
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -348,6 +395,7 @@ async function loadEditor(widget: Widget) {
     $<HTMLSpanElement>("editor-widget").textContent = widget.name;
     $<HTMLSpanElement>("editor-sub").textContent = "read-only";
     void runLint(widget); // hides the pill for read-only widgets
+    syncBtn.hidden = true;
     return;
   }
   emptyEl.hidden = true;
@@ -376,6 +424,7 @@ async function loadEditor(widget: Widget) {
   renderTabs();
   saveBtn.disabled = true;
   void runLint(widget);
+  renderSync(widget);
 }
 
 async function save() {
