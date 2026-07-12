@@ -341,6 +341,19 @@ button.pill:disabled { opacity: 0.55; cursor: default; }
   border-top: 1px solid var(--t-border);
 }
 
+/* ---- MCP client modal: copyable Studio URL + config snippets --------- */
+#mcp-dialog { width: min(580px, 94vw); }
+.mcp-label { font-size: var(--t-size-sm); font-weight: 600; color: var(--t-fg-soft); margin-bottom: calc(-1 * var(--t-space-2)); }
+.copy-row { display: flex; gap: var(--t-space-2); align-items: flex-start; }
+.mcp-snippet {
+  flex: 1; min-width: 0; margin: 0;
+  font-family: var(--t-font-mono); font-size: var(--t-size-sm); line-height: 1.5;
+  background: var(--t-code-bg); color: var(--t-code-fg);
+  padding: var(--t-space-2) var(--t-space-3); border-radius: var(--t-radius-sm);
+  overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+}
+.copy-row .btn { flex: none; white-space: nowrap; }
+
 /* ---- graceful narrow widths (< ~900px): stack the split -------------- */
 @media (max-width: 900px) {
   .workbench { flex-direction: column; }

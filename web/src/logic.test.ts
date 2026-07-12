@@ -4,6 +4,7 @@ import {
   faithfulSize,
   healthPills,
   lintSummary,
+  mcpClientConfig,
   mineDiffBits,
   parseMembers,
 } from "./logic";
@@ -127,6 +128,25 @@ describe("mineDiffBits", () => {
 
   it("omits empty buckets", () => {
     expect(mineDiffBits({ added: ["a"], changed: [], removed: [] })).toBe("+1");
+  });
+});
+
+describe("mcpClientConfig", () => {
+  it("builds the CLI and desktop config from the origin", () => {
+    const cfg = mcpClientConfig("http://homeassistant.local:8770");
+    expect(cfg.studioUrl).toBe("http://homeassistant.local:8770");
+    expect(cfg.cli).toBe(
+      "claude mcp add tesserae-studio -e STUDIO_URL=http://homeassistant.local:8770 -- tesserae-studio-mcp",
+    );
+    const parsed = JSON.parse(cfg.desktopJson);
+    expect(parsed.mcpServers["tesserae-studio"]).toEqual({
+      command: "tesserae-studio-mcp",
+      env: { STUDIO_URL: "http://homeassistant.local:8770" },
+    });
+  });
+
+  it("strips a trailing slash from the origin", () => {
+    expect(mcpClientConfig("http://localhost:8770/").studioUrl).toBe("http://localhost:8770");
   });
 });
 

@@ -8,6 +8,7 @@ import { refreshHealth } from "./connection";
 import { getEditor, initEditor } from "./editorInstance";
 import { initLint } from "./lintPanel";
 import { initPreview } from "./preview";
+import { initSettings } from "./settings";
 import { state } from "./state";
 import { APP_HTML } from "./template";
 import { initTheme } from "./theme";
@@ -19,6 +20,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = APP_HTML;
 
 initEditor();
 initTheme();
+initSettings();
 initPreview();
 initWorkspace();
 initLint();

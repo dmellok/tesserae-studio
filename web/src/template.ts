@@ -13,9 +13,28 @@ export const APP_HTML = `
         <span class="pill" id="mode"><span class="dot"></span><span id="mode-text">·</span></span>
         <span class="pill" id="conn"><span class="dot"></span><span id="conn-text">connecting…</span></span>
       </div>
+      <button class="icon-btn" id="mcp-settings" title="Add an MCP client" aria-label="Add an MCP client"><i class="ph-bold ph-plugs-connected"></i></button>
       <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle light / dark theme"><i class="ph-bold ph-moon"></i></button>
     </div>
   </header>
+  <dialog id="mcp-dialog" class="dialog">
+    <form method="dialog">
+      <h2>Add an MCP client</h2>
+      <p class="d-hint">Drive Studio from an agent (Claude Code / Desktop). Studio's MCP server is a thin client over this backend, so point it at the URL below. Start Studio first, then add it to your client and restart the client.</p>
+      <div class="field">
+        <label for="mcp-url">Studio URL</label>
+        <div class="copy-row"><code class="mcp-snippet" id="mcp-url"></code><button type="button" class="btn ghost" data-copy="mcp-url">Copy</button></div>
+      </div>
+      <label class="mcp-label">Claude Code</label>
+      <div class="copy-row"><pre class="mcp-snippet" id="mcp-cli"></pre><button type="button" class="btn ghost" data-copy="mcp-cli">Copy</button></div>
+      <label class="mcp-label">Claude Desktop (config file)</label>
+      <div class="copy-row"><pre class="mcp-snippet" id="mcp-json"></pre><button type="button" class="btn ghost" data-copy="mcp-json">Copy</button></div>
+      <p class="d-hint">The <code>tesserae-studio-mcp</code> command ships with the Studio install (<code>pip install -e server</code>). No install? Use <code>command: "python"</code>, <code>args: ["-m", "studio_server.mcp_server"]</code>.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="mcp-close">Done</button>
+      </div>
+    </form>
+  </dialog>
   <div class="toolbar">
     <div class="tool-fields">
       <div class="field"><label for="widget">Widget</label><select id="widget"></select></div>

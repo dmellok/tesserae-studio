@@ -72,6 +72,34 @@ export function mineDiffBits(diff: {
     .join(" ");
 }
 
+export interface McpClientConfig {
+  studioUrl: string;
+  cli: string;
+  desktopJson: string;
+}
+
+// The details for pointing an MCP client (Claude Code / Desktop) at this Studio.
+// Studio's MCP server is a thin client over the backend, so it just needs the
+// backend URL, derived here from the browser origin so it is correct wherever
+// Studio is deployed.
+export function mcpClientConfig(origin: string): McpClientConfig {
+  const studioUrl = origin.replace(/\/+$/, "");
+  const cli = `claude mcp add tesserae-studio -e STUDIO_URL=${studioUrl} -- tesserae-studio-mcp`;
+  const desktopJson = JSON.stringify(
+    {
+      mcpServers: {
+        "tesserae-studio": {
+          command: "tesserae-studio-mcp",
+          env: { STUDIO_URL: studioUrl },
+        },
+      },
+    },
+    null,
+    2,
+  );
+  return { studioUrl, cli, desktopJson };
+}
+
 // Parse the bundle dialog's "one member per line" textarea into member specs.
 export function parseMembers(text: string): Array<{ name: string }> {
   return text
