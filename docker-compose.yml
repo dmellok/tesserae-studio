@@ -1,0 +1,44 @@
+# Tesserae Studio, minimal docker-compose example.
+#
+#     docker compose up -d
+#
+# Then open http://<host-ip>:8770. Pin to a specific tag (not :latest) in any
+# setup you care about so `docker compose pull && up -d` is a deliberate upgrade.
+#
+# Studio needs a running Tesserae for real fetch() data and faithful (e-ink)
+# render. Point STUDIO_TESSERAE_URL at it:
+#   * Tesserae on the same host (pip / systemd):  http://<host-ip>:8765
+#   * Tesserae as another container on this network:  http://tesserae:8765
+# Without one, Studio still runs but only for interactive preview off a mounted
+# tesserae checkout (see STUDIO_TESSERAE_PATH in the README).
+
+services:
+  tesserae-studio:
+    image: ghcr.io/dmellok/tesserae-studio:latest
+    container_name: tesserae-studio
+    restart: unless-stopped
+
+    ports:
+      - "8770:8770"
+
+    volumes:
+      # Authored widgets + fetch caches. Replace ./data with a path you back up.
+      - ./data:/app/data
+      # Optional: mount a tesserae checkout for standalone (no-live) preview.
+      # - /path/to/tesserae:/tesserae:ro
+
+    environment:
+      # The Tesserae this Studio drives (real data + faithful render + registry).
+      STUDIO_TESSERAE_URL: "http://host.docker.internal:8765"
+      # Persist authored widgets in the data volume.
+      STUDIO_WORKDIR: "/app/data/workspace"
+      # MCP bearer token to push widgets to a remote / HA Tesserae (Settings ->
+      # System -> MCP). Not needed when Tesserae is co-located.
+      # STUDIO_TESSERAE_MCP_TOKEN: ""
+      # For the mounted-checkout standalone mode above:
+      # STUDIO_TESSERAE_PATH: "/tesserae"
+
+    # Linux hosts don't resolve host.docker.internal by default; this maps it to
+    # the host gateway so the URL above reaches a host-side Tesserae.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

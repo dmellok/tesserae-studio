@@ -66,6 +66,46 @@ straight off a `tesserae` checkout on disk, so interactive preview needs **no ru
 instance**. Preview data comes from Tesserae's dev-gallery samples. A live Tesserae is
 required only for real `fetch()` data and faithful (e-ink) render, both later milestones.
 
+## Install
+
+Studio serves its built front end from the backend, so a production install is a
+single process. Pick one:
+
+**One-command (macOS / Linux / Raspberry Pi)** — clones, builds, writes `run.sh`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/dmellok/tesserae-studio/main/install.sh | bash
+```
+
+**Windows (PowerShell)**:
+
+```powershell
+iwr https://raw.githubusercontent.com/dmellok/tesserae-studio/main/install.ps1 -UseBasicParsing | iex
+```
+
+Both prompt for the port and a Tesserae URL, then print the start command
+(`./run.sh`, serving http://localhost:8770).
+
+**Docker**:
+
+```sh
+docker run -d --name tesserae-studio -p 8770:8770 \
+  -e STUDIO_TESSERAE_URL=http://<your-tesserae-host>:8765 \
+  -v "$PWD/data:/app/data" ghcr.io/dmellok/tesserae-studio:latest
+```
+
+Or copy [`docker-compose.yml`](docker-compose.yml) and `docker compose up -d`.
+
+**Home Assistant** — add the repository
+`https://github.com/dmellok/homeassistant-tesserae-addon` (the same one that ships
+Tesserae) in Settings → Add-ons → Add-on Store → ⋮ → Repositories, then install
+**Tesserae Studio**, set `tesserae_url` in its Configuration tab, and open its web
+UI on port 8770.
+
+All methods take the same env vars (see [Configuration](#configuration)); the key
+one is `STUDIO_TESSERAE_URL`, the Tesserae that supplies live data + faithful
+render. For local development from source, see [Run (dev)](#run-dev) below.
+
 ## Prerequisites
 
 - Python 3.11+ and Node 18+.
