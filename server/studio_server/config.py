@@ -70,7 +70,7 @@ class Settings:
         return host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         repo_root = Path(__file__).resolve().parents[2]  # tesserae-studio/
         url = os.environ.get("STUDIO_TESSERAE_URL", "http://localhost:8765").rstrip("/")
         port = int(os.environ.get("STUDIO_PORT", "8770"))
@@ -109,7 +109,12 @@ class Settings:
         catalog_repo = os.environ.get("STUDIO_CATALOG_REPO", "dmellok/tesserae-widgets")
 
         return cls(
-            tesserae_url=url, port=port, workdir=workdir,
-            tesserae_path=path, tesserae_data_root=data_root, mcp_token=token,
-            catalog_path=catalog_path, catalog_repo=catalog_repo,
+            tesserae_url=url,
+            port=port,
+            workdir=workdir,
+            tesserae_path=path,
+            tesserae_data_root=data_root,
+            mcp_token=token,
+            catalog_path=catalog_path,
+            catalog_repo=catalog_repo,
         )

@@ -12,10 +12,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .scaffold import ScaffoldError, slugify
+from .scaffold import ScaffoldError, _normalise_fragment, _smoke_test, slugify
 from .scaffold import _client_js as _member_client_js
-from .scaffold import _normalise_fragment
-from .scaffold import _smoke_test
 
 
 def scaffold_bundle_files(
@@ -51,7 +49,10 @@ def _core_files(name: str, core_id: str, slug: str, admin: bool) -> dict[str, st
         "name": f"{name} Core",
         "version": "0.1.0",
         "kind": "data",
-        "description": f"Shared config + data for the {slug}_* widget family. Edit its items on the admin page; each member picks which to show.",
+        "description": (
+            f"Shared config + data for the {slug}_* widget family. "
+            "Edit its items on the admin page; each member picks which to show."
+        ),
         "icon": "ph-stack",
         "supports": {"sizes": ["xs", "sm", "md", "lg"]},
     }
@@ -65,8 +66,11 @@ def _core_files(name: str, core_id: str, slug: str, admin: bool) -> dict[str, st
 
 
 def _core_server(core_id: str, admin: bool) -> str:
-    imports = "from flask import Blueprint, current_app, redirect, render_template, request, url_for" if admin \
+    imports = (
+        "from flask import Blueprint, current_app, redirect, render_template, request, url_for"
+        if admin
         else "from flask import current_app"
+    )
     blueprint = _core_blueprint(core_id) if admin else ""
     return f'''"""{core_id}: shared config + data for the family. Members read it via
 ``current_app.config["PLUGIN_REGISTRY"].get("{core_id}")``. Config (a list of
@@ -126,21 +130,21 @@ def get_data(item_ids: list[str] | None = None) -> list[dict[str, Any]]:
 
 
 def _core_blueprint(core_id: str) -> str:
-    return f'''
+    return """
 
 def blueprint() -> "Blueprint":
-    bp = Blueprint(f"{{CORE_ID}}_admin", __name__, template_folder="templates")
+    bp = Blueprint(f"{CORE_ID}_admin", __name__, template_folder="templates")
 
     @bp.get("/")
     def index() -> str:
-        return render_template(f"{{CORE_ID}}/index.html", items=load_items())
+        return render_template(f"{CORE_ID}/index.html", items=load_items())
 
     @bp.post("/add")
     def add() -> "Any":
         label = (request.form.get("name") or "").strip()
         if label:
             items = load_items()
-            items.append({{"id": uuid.uuid4().hex[:8], "name": label}})
+            items.append({"id": uuid.uuid4().hex[:8], "name": label})
             _save_items(items)
         return redirect(url_for(".index"))
 
@@ -150,16 +154,17 @@ def blueprint() -> "Blueprint":
         return redirect(url_for(".index"))
 
     return bp
-'''
+"""
 
 
 def _core_admin_template(name: str, core_id: str) -> str:
-    return f'''{{% extends "_base.html" %}}
+    family = core_id.rsplit("_", 1)[0]
+    return f"""{{% extends "_base.html" %}}
 {{% block title %}}{name} Core, Tesserae{{% endblock %}}
 {{% block main %}}
 <div class="page-head">
   <h1><i class="ph-bold ph-stack" aria-hidden="true"></i> {name}</h1>
-  <p class="page-blurb">Items the {core_id.rsplit("_", 1)[0]}_* widgets read. Add or remove them here.</p>
+  <p class="page-blurb">Items the {family}_* widgets read. Add or remove them here.</p>
 </div>
 
 <section class="card">
@@ -178,7 +183,8 @@ def _core_admin_template(name: str, core_id: str) -> str:
     {{% for it in items %}}
     <li>
       <span>{{{{ it.name }}}}</span>
-      <form method="post" action="{{{{ url_for('{core_id}_admin.delete', item_id=it.id) }}}}" style="display:inline">
+      <form method="post" style="display:inline"
+            action="{{{{ url_for('{core_id}_admin.delete', item_id=it.id) }}}}">
         <button type="submit" class="btn ghost">Remove</button>
       </form>
     </li>
@@ -189,7 +195,7 @@ def _core_admin_template(name: str, core_id: str) -> str:
   {{% endif %}}
 </section>
 {{% endblock %}}
-'''
+"""
 
 
 # -- member widget ---------------------------------------------------------
@@ -207,7 +213,17 @@ def _member_files(name: str, member_id: str, core_id: str, icon: Any) -> dict[st
             {"name": "items", "type": "multiselect", "label": "Items", "choices_from": "items"},
         ],
         "fragments": [
-            {k: v for k, v in {"id": f["id"], "label": f["label"], "icon": f["icon"], "w": f["w"], "h": f["h"]}.items() if v is not None}
+            {
+                k: v
+                for k, v in {
+                    "id": f["id"],
+                    "label": f["label"],
+                    "icon": f["icon"],
+                    "w": f["w"],
+                    "h": f["h"],
+                }.items()
+                if v is not None
+            }
             for f in frags
         ],
         # Has a server.py; mine the real fields once the core has items.
@@ -246,7 +262,9 @@ def choices(name: str) -> list[dict[str, str]]:
     return []
 
 
-def fetch(options: dict[str, Any], settings: dict[str, Any], *, ctx: dict[str, Any]) -> dict[str, Any]:
+def fetch(
+    options: dict[str, Any], settings: dict[str, Any], *, ctx: dict[str, Any]
+) -> dict[str, Any]:
     del settings, ctx
     core = _core()
     if core is None or core.server_module is None:

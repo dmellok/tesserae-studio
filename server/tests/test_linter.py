@@ -8,7 +8,7 @@ from studio_server.linter import lint_widget
 # A clean, fragment-first widget: valid manifest, well-behaved client.js, smoke
 # test, no server. Mutated per test to trip exactly one rule.
 CLEAN_JS = (
-    'export default function (shadow, ctx) {\n'
+    "export default function (shadow, ctx) {\n"
     '  const f = ctx.cell.fragment || "full";\n'
     '  shadow.innerHTML = `<div class="w">${f}</div>`;\n'
     "}\n"
@@ -53,7 +53,10 @@ def test_no_client_fetch():
 
 
 def test_no_remote_script():
-    files = {**CLEAN_FILES, "client.js": CLEAN_JS + '\nx.innerHTML = `<script src="https://cdn/x.js"></script>`;'}
+    files = {
+        **CLEAN_FILES,
+        "client.js": CLEAN_JS + '\nx.innerHTML = `<script src="https://cdn/x.js"></script>`;',
+    }
     assert "no-remote-script" in ids(files, CLEAN_MANIFEST)
 
 
@@ -83,7 +86,11 @@ def test_no_custom_fonts_absolute_family():
 
 
 def test_font_family_inherit_and_var_ok():
-    files = {**CLEAN_FILES, "client.js": CLEAN_JS + "\n.a{ font-family: inherit; } .b{ font-family: var(--font-family); }"}
+    files = {
+        **CLEAN_FILES,
+        "client.js": CLEAN_JS
+        + "\n.a{ font-family: inherit; } .b{ font-family: var(--font-family); }",
+    }
     assert "no-custom-fonts" not in ids(files, CLEAN_MANIFEST)
 
 
@@ -123,13 +130,23 @@ def test_no_raise_in_server():
 
 
 def test_declare_egress_when_server_fetches():
-    files = {**CLEAN_FILES, "server.py": "def fetch(o, s, *, ctx):\n    return fetch_json('http://x')\n"}
+    files = {
+        **CLEAN_FILES,
+        "server.py": "def fetch(o, s, *, ctx):\n    return fetch_json('http://x')\n",
+    }
     assert "declare-egress" in ids(files, CLEAN_MANIFEST)
 
 
 def test_egress_ok_when_declared():
-    files = {**CLEAN_FILES, "server.py": "def fetch(o, s, *, ctx):\n    return fetch_json('http://x')\n"}
-    manifest = {**CLEAN_MANIFEST, "requires": ["network:host"], "data_schema": {"fields": [], "sample": {}}}
+    files = {
+        **CLEAN_FILES,
+        "server.py": "def fetch(o, s, *, ctx):\n    return fetch_json('http://x')\n",
+    }
+    manifest = {
+        **CLEAN_MANIFEST,
+        "requires": ["network:host"],
+        "data_schema": {"fields": [], "sample": {}},
+    }
     assert "declare-egress" not in ids(files, manifest)
 
 

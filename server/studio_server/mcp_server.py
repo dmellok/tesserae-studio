@@ -41,7 +41,10 @@ async def _json(method: str, path: str, **kw) -> Any:
     try:
         resp = await _http().request(method, path, **kw)
     except httpx.HTTPError as exc:
-        return {"error": f"cannot reach Studio at {STUDIO_URL} ({exc}). Is `uvicorn studio_server.app:app` running?"}
+        return {
+            "error": f"cannot reach Studio at {STUDIO_URL} ({exc}). "
+            "Is `uvicorn studio_server.app:app` running?"
+        }
     if resp.status_code >= 400:
         try:
             return {"error": resp.json().get("error", resp.text), "status": resp.status_code}
@@ -81,7 +84,9 @@ async def list_widgets() -> dict:
 # -- authoring -------------------------------------------------------------
 @mcp.tool()
 async def scaffold_widget(
-    name: str, archetype: str = "stat", server: bool = False,
+    name: str,
+    archetype: str = "stat",
+    server: bool = False,
     fragments: list[dict] | None = None,
 ) -> dict:
     """Create a new fragment-first, lint-clean widget in the workspace.
@@ -140,8 +145,11 @@ async def lint_widget(widget: str) -> dict:
 
 @mcp.tool()
 async def mine_data_schema(
-    widget: str, source: str = "auto", apply: bool = False,
-    max_fields: int = 64, options: dict | None = None,
+    widget: str,
+    source: str = "auto",
+    apply: bool = False,
+    max_fields: int = 64,
+    options: dict | None = None,
 ) -> dict:
     """Mine a canvas-bindable data_schema (fields + sample) from the widget's
     data. source: auto|live|sample. apply=true writes it into plugin.json.
@@ -218,15 +226,26 @@ async def generate_catalog_entry(
     from tarball_url if omitted). Identity (id/kind/folders) is filled from the
     manifest; a bundle gets folders. Returns {entry, valid, errors}."""
     opts: dict[str, Any] = {"author": author, "tags": tags, "release": release}
-    for k, v in (("source", source), ("name", name), ("description", description), ("official", official)):
+    for k, v in (
+        ("source", source),
+        ("name", name),
+        ("description", description),
+        ("official", official),
+    ):
         if v is not None:
             opts[k] = v
     return await _json("POST", f"/studio/api/catalog-entry/{widget}", json=opts)
 
 
 @mcp.tool()
-async def open_catalog_pr(widget: str, author: dict, tags: list[str], release: dict,
-                          source: str | None = None, dry_run: bool = True) -> dict:
+async def open_catalog_pr(
+    widget: str,
+    author: dict,
+    tags: list[str],
+    release: dict,
+    source: str | None = None,
+    dry_run: bool = True,
+) -> dict:
     """Prepare a PR to the widget catalog: validates the entry, computes the
     widgets.json diff, and drafts the PR title/body + screenshot path. dry_run
     (default true) returns the plan without touching GitHub; opening the real PR

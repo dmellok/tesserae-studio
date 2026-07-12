@@ -47,7 +47,9 @@ def sync(marketplace_dir: Path | None, workspace_root: Path, key: str) -> None:
     if link.is_symlink() or link.exists():
         if link.is_symlink() and _resolves_to(link, target):
             return  # already synced, idempotent
-        raise SyncError(f"{key} already exists in the Tesserae marketplace and is not a Studio symlink.")
+        raise SyncError(
+            f"{key} already exists in the Tesserae marketplace and is not a Studio symlink."
+        )
     os.symlink(target, link)
 
 

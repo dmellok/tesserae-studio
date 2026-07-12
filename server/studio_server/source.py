@@ -156,9 +156,7 @@ class TesseraeSource:
             except Exception:  # noqa: BLE001 - fall back to sample below
                 pass
         sample = self._disk_sample(key)
-        return JSONResponse(
-            {"data": sample, "source": "sample" if sample is not None else "none"}
-        )
+        return JSONResponse({"data": sample, "source": "sample" if sample is not None else "none"})
 
     def _disk_sample(self, key: str) -> Any:
         if self.path is None:

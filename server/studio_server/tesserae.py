@@ -24,7 +24,9 @@ class PushError(Exception):
 
 
 class TesseraeClient:
-    def __init__(self, base_url: str, *, mcp_token: str | None = None, timeout: float = 30.0) -> None:
+    def __init__(
+        self, base_url: str, *, mcp_token: str | None = None, timeout: float = 30.0
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.mcp_token = mcp_token
         self._client = httpx.AsyncClient(base_url=self.base_url, timeout=timeout)
@@ -82,8 +84,9 @@ class TesseraeClient:
         except httpx.HTTPError:
             return False
 
-    async def install_widget(self, tar_bytes: bytes, *, widget_id: str | None = None,
-                             reload: str = "auto") -> dict[str, Any]:
+    async def install_widget(
+        self, tar_bytes: bytes, *, widget_id: str | None = None, reload: str = "auto"
+    ) -> dict[str, Any]:
         params = {"reload": reload}
         if widget_id:
             params["id"] = widget_id
@@ -97,8 +100,10 @@ class TesseraeClient:
 
     async def uninstall_widget(self, widget_id: str, *, reload: str = "auto") -> dict[str, Any]:
         resp = await self._client.request(
-            "DELETE", f"/api/mcp/widgets/{widget_id}",
-            params={"reload": reload}, headers=self._mcp_headers(),
+            "DELETE",
+            f"/api/mcp/widgets/{widget_id}",
+            params={"reload": reload},
+            headers=self._mcp_headers(),
         )
         return self._json_or_push_error(resp)
 
@@ -116,8 +121,9 @@ class TesseraeClient:
         )
         return self._json_or_push_error(resp)
 
-    async def render_png(self, widget_id: str, *, size: str = "lg",
-                         opts: str | None = None) -> tuple[bytes, str]:
+    async def render_png(
+        self, widget_id: str, *, size: str = "lg", opts: str | None = None
+    ) -> tuple[bytes, str]:
         params: dict[str, str] = {"size": size}
         if opts:
             params["opts"] = opts
@@ -138,7 +144,9 @@ class TesseraeClient:
             raise PushError(resp.status_code, msg)
         return resp.json()
 
-    async def widget_data(self, widget_id: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def widget_data(
+        self, widget_id: str, options: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Live ``fetch()`` output + flattened ``fields`` for a widget.
 
         This is the endpoint ``mine_data_schema`` will reuse (Tesserae's

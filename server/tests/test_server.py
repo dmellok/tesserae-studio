@@ -42,7 +42,14 @@ def _make_client(settings: Settings) -> TestClient:
 def live_client(tmp_path):
     """No disk checkout: assets + catalog come from the (mock) live instance."""
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=None, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets'
+        tesserae_url="http://tess.test",
+        port=8770,
+        workdir=tmp_path,
+        tesserae_path=None,
+        tesserae_data_root=None,
+        mcp_token=None,
+        catalog_path=None,
+        catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
     yield c
@@ -75,7 +82,14 @@ def disk_client(tmp_path):
     core.joinpath("plugin.json").write_text(json.dumps({"kind": "companion", "name": "Fonts"}))
 
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=checkout, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets'
+        tesserae_url="http://tess.test",
+        port=8770,
+        workdir=tmp_path,
+        tesserae_path=checkout,
+        tesserae_data_root=None,
+        mcp_token=None,
+        catalog_path=None,
+        catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
     # Force the live probe to fail, proving disk mode is self-sufficient.
@@ -151,12 +165,17 @@ def ws_client(tmp_path):
         json.dumps({"kind": "widget", "name": "Mine", "icon": "ph-star", "fragments": []})
     )
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets'
+        tesserae_url="http://tess.test",
+        port=8770,
+        workdir=wdir,
+        tesserae_path=None,
+        tesserae_data_root=None,
+        mcp_token=None,
+        catalog_path=None,
+        catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
-    c.app.state.tesserae.raw._transport = httpx.MockTransport(
-        lambda req: httpx.Response(404)
-    )
+    c.app.state.tesserae.raw._transport = httpx.MockTransport(lambda req: httpx.Response(404))
     yield c
     c.__exit__(None, None, None)
 
@@ -198,9 +217,7 @@ def test_workspace_asset_shadows_plugin(ws_client):
 def test_workspace_path_traversal_blocked(ws_client):
     # The HTTP client normalises ../ in the URL, so the router rejects it before
     # our guard; either way nothing is written outside the workdir.
-    r = ws_client.put(
-        "/studio/api/files/mywidget/../escape.txt", json={"content": "nope"}
-    )
+    r = ws_client.put("/studio/api/files/mywidget/../escape.txt", json={"content": "nope"})
     assert r.status_code in (400, 404, 405)
     assert not (ws_client.app.state.settings.workdir / "escape.txt").exists()
 
@@ -230,7 +247,9 @@ def test_scaffold_creates_editable_widget(ws_client):
 
 def test_scaffold_manifest_is_fragment_first(ws_client):
     ws_client.post("/studio/api/scaffold", json={"name": "Frag Demo", "archetype": "stat"})
-    manifest = json.loads(ws_client.get("/studio/api/files/frag_demo/plugin.json").json()["content"])
+    manifest = json.loads(
+        ws_client.get("/studio/api/files/frag_demo/plugin.json").json()["content"]
+    )
     assert manifest["kind"] == "widget"
     assert manifest["supports"]["sizes"] == ["xs", "sm", "md", "lg"]
     frag_ids = [f["id"] for f in manifest["fragments"]]
@@ -275,8 +294,14 @@ def sync_client(tmp_path):
     widget.joinpath("plugin.json").write_text(json.dumps({"kind": "widget", "name": "Mine"}))
     data_root = tmp_path / "tess-data"  # marketplace/ created on sync
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=wdir,
-        tesserae_path=None, tesserae_data_root=data_root, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets',
+        tesserae_url="http://tess.test",
+        port=8770,
+        workdir=wdir,
+        tesserae_path=None,
+        tesserae_data_root=data_root,
+        mcp_token=None,
+        catalog_path=None,
+        catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = httpx.MockTransport(lambda req: httpx.Response(404))
@@ -344,19 +369,45 @@ def _mock_push_tesserae(installed):
         if p == "/api/mcp/catalog":
             return httpx.Response(200, json={"widgets": [], "appearance": {}})
         if p == "/api/mcp/widgets" and request.url.params.get("origin") == "authored":
-            return httpx.Response(200, json={"widgets": [{"id": i, "version": "0.1.0", "active": True} for i in sorted(installed)]})
+            return httpx.Response(
+                200,
+                json={
+                    "widgets": [
+                        {"id": i, "version": "0.1.0", "active": True} for i in sorted(installed)
+                    ]
+                },
+            )
         if p == "/api/mcp/widgets/install":
             wid = request.url.params.get("id", "widget")
             installed.add(wid)
-            return httpx.Response(200, json={
-                "ok": True, "id": wid, "version": "0.1.0", "installed": True,
-                "reload": "in_process", "active": True, "restarting": False,
-            })
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "id": wid,
+                    "version": "0.1.0",
+                    "installed": True,
+                    "reload": "in_process",
+                    "active": True,
+                    "restarting": False,
+                },
+            )
         if p.startswith("/api/mcp/widgets/") and p.endswith("/render.png"):
-            return httpx.Response(200, content=b"\x89PNG\r\n_fake_", headers={"content-type": "image/png"})
+            return httpx.Response(
+                200, content=b"\x89PNG\r\n_fake_", headers={"content-type": "image/png"}
+            )
         if p.startswith("/api/mcp/widgets/") and request.method == "DELETE":
             installed.discard(p.rsplit("/", 1)[-1])
-            return httpx.Response(200, json={"ok": True, "id": p.rsplit("/", 1)[-1], "reload": "in_process", "active": False, "restarting": False})
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "id": p.rsplit("/", 1)[-1],
+                    "reload": "in_process",
+                    "active": False,
+                    "restarting": False,
+                },
+            )
         return httpx.Response(404, json={"error": "not found"})
 
     return httpx.MockTransport(handler)
@@ -371,9 +422,14 @@ def push_client(tmp_path):
     widget.joinpath("client.js").write_text("export default () => {}")
     widget.joinpath("plugin.json").write_text(json.dumps({"kind": "widget", "name": "Mine"}))
     settings = Settings(
-        tesserae_url="http://tess.remote:8765", port=8770, workdir=wdir,
-        tesserae_path=None, tesserae_data_root=None, mcp_token="tok",
-        catalog_path=None, catalog_repo="dmellok/tesserae-widgets",
+        tesserae_url="http://tess.remote:8765",
+        port=8770,
+        workdir=wdir,
+        tesserae_path=None,
+        tesserae_data_root=None,
+        mcp_token="tok",
+        catalog_path=None,
+        catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = _mock_push_tesserae(set())
@@ -425,9 +481,13 @@ def test_render_png_proxied(push_client):
 def test_push_error_surfaced(push_client):
     # Swap in a transport that rejects install with a friendly error.
     push_client.app.state.tesserae.raw._transport = httpx.MockTransport(
-        lambda req: httpx.Response(200, text="ok") if req.url.path == "/healthz"
-        else httpx.Response(200, json={"widgets": []}) if req.url.path == "/api/mcp/widgets"
-        else httpx.Response(409, json={"error": "id collides with a bundled widget"})
+        lambda req: (
+            httpx.Response(200, text="ok")
+            if req.url.path == "/healthz"
+            else httpx.Response(200, json={"widgets": []})
+            if req.url.path == "/api/mcp/widgets"
+            else httpx.Response(409, json={"error": "id collides with a bundled widget"})
+        )
     )
     r = push_client.post("/studio/api/push/mywidget")
     assert r.status_code == 409 and "bundled" in r.json()["error"]
@@ -435,20 +495,48 @@ def test_push_error_surfaced(push_client):
 
 # -- package + publish (M6) -------------------------------------------------
 _MARKET_SCHEMA = {
-    "type": "object", "required": ["version", "widgets"],
-    "properties": {"widgets": {"type": "array", "items": {
-        "type": "object",
-        "required": ["id", "name", "description", "author", "tags", "kind", "tesserae_compat", "screenshot_sizes", "release"],
-        "properties": {
-            "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
-            "tags": {"type": "array", "minItems": 1, "items": {"enum": ["news", "weather", "utility", "sports"]}},
-            "author": {"type": "object", "required": ["name"]},
-            "screenshot_sizes": {"type": "array", "items": {"enum": ["xs", "sm", "md", "lg"]}},
-            "release": {"type": "object", "required": ["version", "tarball_url", "sha256"], "properties": {
-                "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-                "tarball_url": {"type": "string", "pattern": "^https://"},
-            }},
-        }}}},
+    "type": "object",
+    "required": ["version", "widgets"],
+    "properties": {
+        "widgets": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "author",
+                    "tags",
+                    "kind",
+                    "tesserae_compat",
+                    "screenshot_sizes",
+                    "release",
+                ],
+                "properties": {
+                    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+                    "tags": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"enum": ["news", "weather", "utility", "sports"]},
+                    },
+                    "author": {"type": "object", "required": ["name"]},
+                    "screenshot_sizes": {
+                        "type": "array",
+                        "items": {"enum": ["xs", "sm", "md", "lg"]},
+                    },
+                    "release": {
+                        "type": "object",
+                        "required": ["version", "tarball_url", "sha256"],
+                        "properties": {
+                            "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+                            "tarball_url": {"type": "string", "pattern": "^https://"},
+                        },
+                    },
+                },
+            },
+        }
+    },
 }
 _GOOD_RELEASE = {
     "version": "0.1.0",
@@ -462,17 +550,32 @@ def publish_client(tmp_path):
     wdir = tmp_path / "work"
     (wdir / "aq").mkdir(parents=True)
     (wdir / "aq" / "client.js").write_text("export default () => {}")
-    (wdir / "aq" / "plugin.json").write_text(json.dumps({
-        "tesserae_compat": "1.x", "name": "Air Quality", "version": "0.1.0", "kind": "widget",
-        "icon": "ph-wind", "description": "AQI now.", "supports": {"sizes": ["lg"]},
-    }))
+    (wdir / "aq" / "plugin.json").write_text(
+        json.dumps(
+            {
+                "tesserae_compat": "1.x",
+                "name": "Air Quality",
+                "version": "0.1.0",
+                "kind": "widget",
+                "icon": "ph-wind",
+                "description": "AQI now.",
+                "supports": {"sizes": ["lg"]},
+            }
+        )
+    )
     catalog = tmp_path / "catalog"
     (catalog / "schema").mkdir(parents=True)
     (catalog / "schema" / "marketplace.schema.json").write_text(json.dumps(_MARKET_SCHEMA))
     (catalog / "widgets.json").write_text(json.dumps({"version": 1, "widgets": []}))
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None,
-        tesserae_data_root=None, mcp_token=None, catalog_path=catalog, catalog_repo="dmellok/tesserae-widgets",
+        tesserae_url="http://tess.test",
+        port=8770,
+        workdir=wdir,
+        tesserae_path=None,
+        tesserae_data_root=None,
+        mcp_token=None,
+        catalog_path=catalog,
+        catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = httpx.MockTransport(lambda req: httpx.Response(404))
@@ -480,7 +583,12 @@ def publish_client(tmp_path):
 
 
 def _entry(c, widget, **opts):
-    body = {"author": {"name": "K", "github": "dmellok"}, "tags": ["utility"], "release": _GOOD_RELEASE, **opts}
+    body = {
+        "author": {"name": "K", "github": "dmellok"},
+        "tags": ["utility"],
+        "release": _GOOD_RELEASE,
+        **opts,
+    }
     return c.post(f"/studio/api/catalog-entry/{widget}", json=body).json()
 
 
@@ -510,22 +618,31 @@ def test_catalog_entry_rejects_bad_sha(publish_client):
 
 
 def test_catalog_entry_requires_author(publish_client):
-    resp = publish_client.post("/studio/api/catalog-entry/aq", json={"tags": ["utility"], "release": _GOOD_RELEASE})
+    resp = publish_client.post(
+        "/studio/api/catalog-entry/aq", json={"tags": ["utility"], "release": _GOOD_RELEASE}
+    )
     assert resp.status_code == 400 and "author" in resp.json()["error"]
 
 
 def test_bundle_catalog_entry_has_folders(publish_client):
-    publish_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    publish_client.post(
+        "/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]}
+    )
     r = _entry(publish_client, "news_headlines", tags=["news"], name="News Bundle")
     assert r["valid"] is True
     assert r["entry"]["id"] == "news" and r["entry"]["folders"] == ["news_core", "news_headlines"]
 
 
 def test_publish_dry_run_plan(publish_client):
-    r = publish_client.post("/studio/api/publish/aq", json={
-        "author": {"name": "K", "github": "dmellok"}, "tags": ["utility"], "release": _GOOD_RELEASE,
-        "source": "https://github.com/dmellok/tesserae-widget-aq",
-    }).json()
+    r = publish_client.post(
+        "/studio/api/publish/aq",
+        json={
+            "author": {"name": "K", "github": "dmellok"},
+            "tags": ["utility"],
+            "release": _GOOD_RELEASE,
+            "source": "https://github.com/dmellok/tesserae-widget-aq",
+        },
+    ).json()
     assert r["ok"] and r["dry_run"] is True and r["target_repo"] == "dmellok/tesserae-widgets"
     assert r["action"] == "add" and r["pr_title"].startswith("Add Air Quality")
     assert "widgets.json" in r["files"] and "screenshots/aq/lg.png" in r["files"]
@@ -535,48 +652,72 @@ def test_publish_dry_run_plan(publish_client):
 
 
 def test_publish_real_pr_is_gated(publish_client):
-    resp = publish_client.post("/studio/api/publish/aq", json={
-        "author": {"name": "K"}, "tags": ["utility"], "release": _GOOD_RELEASE, "dry_run": False,
-    })
+    resp = publish_client.post(
+        "/studio/api/publish/aq",
+        json={
+            "author": {"name": "K"},
+            "tags": ["utility"],
+            "release": _GOOD_RELEASE,
+            "dry_run": False,
+        },
+    )
     assert resp.status_code == 400 and "gated" in resp.json()["error"]
 
 
 # -- bundles (M5) -----------------------------------------------------------
 def test_scaffold_bundle_creates_core_and_members(ws_client):
-    r = ws_client.post("/studio/api/scaffold-bundle", json={
-        "name": "News", "members": [{"name": "Headlines"}, {"name": "Ticker"}],
-    }).json()
+    r = ws_client.post(
+        "/studio/api/scaffold-bundle",
+        json={
+            "name": "News",
+            "members": [{"name": "Headlines"}, {"name": "Ticker"}],
+        },
+    ).json()
     assert r["ok"] and r["core"] == "news_core"
     assert r["members"] == ["news_headlines", "news_ticker"]
     # Core is a data companion with an admin template + choices/blueprint server.
     core_files = {f["path"] for f in ws_client.get("/studio/api/files/news_core").json()["files"]}
     assert {"plugin.json", "server.py", "templates/news_core/index.html"} <= core_files
-    core_manifest = json.loads(ws_client.get("/studio/api/files/news_core/plugin.json").json()["content"])
+    core_manifest = json.loads(
+        ws_client.get("/studio/api/files/news_core/plugin.json").json()["content"]
+    )
     assert core_manifest["kind"] == "data"
     core_server = ws_client.get("/studio/api/files/news_core/server.py").json()["content"]
-    assert "def choices(" in core_server and "def blueprint(" in core_server and "def get_data(" in core_server
+    assert (
+        "def choices(" in core_server
+        and "def blueprint(" in core_server
+        and "def get_data(" in core_server
+    )
 
 
 def test_bundle_member_wired_to_core(ws_client):
-    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
-    manifest = json.loads(ws_client.get("/studio/api/files/news_headlines/plugin.json").json()["content"])
+    ws_client.post(
+        "/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]}
+    )
+    manifest = json.loads(
+        ws_client.get("/studio/api/files/news_headlines/plugin.json").json()["content"]
+    )
     assert manifest["kind"] == "widget"
     opt = manifest["cell_options"][0]
     assert opt["type"] == "multiselect" and opt["choices_from"] == "items"
     server = ws_client.get("/studio/api/files/news_headlines/server.py").json()["content"]
     assert 'PLUGIN_REGISTRY"].get(CORE_ID)' in server
-    assert 'news_core plugin not installed' in server
+    assert "news_core plugin not installed" in server
 
 
 def test_bundle_core_in_catalog_but_not_widget_kind(ws_client):
-    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    ws_client.post(
+        "/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]}
+    )
     widgets = {w["key"]: w for w in ws_client.get("/studio/api/catalog").json()["widgets"]}
     assert widgets["news_core"]["kind"] == "data" and widgets["news_core"]["editable"] is True
     assert widgets["news_headlines"]["kind"] == "widget"
 
 
 def test_lint_skips_companion_core(ws_client):
-    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    ws_client.post(
+        "/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]}
+    )
     lint = ws_client.get("/studio/api/lint/news_core").json()
     assert lint["errors"] == 0 and lint["warnings"] == 0 and "companion" in lint.get("note", "")
     # the member widget still lints clean
@@ -584,8 +725,12 @@ def test_lint_skips_companion_core(ws_client):
 
 
 def test_scaffold_bundle_rejects_clash(ws_client):
-    ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
-    again = ws_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    ws_client.post(
+        "/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]}
+    )
+    again = ws_client.post(
+        "/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]}
+    )
     assert again.status_code == 400 and "already exist" in again.json()["error"]
 
 
@@ -597,21 +742,39 @@ def mine_client(tmp_path):
     widget = wdir / "wx"
     widget.mkdir(parents=True)
     widget.joinpath("client.js").write_text("export default () => {}")
-    widget.joinpath("plugin.json").write_text(json.dumps({
-        "tesserae_compat": "1.x", "name": "Wx", "version": "0.1.0", "kind": "widget",
-        "supports": {"sizes": ["md"]},
-    }))
+    widget.joinpath("plugin.json").write_text(
+        json.dumps(
+            {
+                "tesserae_compat": "1.x",
+                "name": "Wx",
+                "version": "0.1.0",
+                "kind": "widget",
+                "supports": {"sizes": ["md"]},
+            }
+        )
+    )
     # A tesserae checkout so the schema endpoint can validate on apply.
     checkout = tmp_path / "tess"
     (checkout / "schema").mkdir(parents=True)
-    (checkout / "schema" / "plugin.schema.json").write_text(json.dumps({
-        "type": "object", "required": ["name", "kind"],
-        "properties": {"data_schema": {"type": "object"}},
-    }))
+    (checkout / "schema" / "plugin.schema.json").write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "required": ["name", "kind"],
+                "properties": {"data_schema": {"type": "object"}},
+            }
+        )
+    )
     (checkout / "plugins").mkdir()
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=wdir,
-        tesserae_path=checkout, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets',
+        tesserae_url="http://tess.test",
+        port=8770,
+        workdir=wdir,
+        tesserae_path=checkout,
+        tesserae_data_root=None,
+        mcp_token=None,
+        catalog_path=None,
+        catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
 
@@ -619,11 +782,18 @@ def mine_client(tmp_path):
         if request.url.path == "/healthz":
             return httpx.Response(200, text="ok")
         if request.url.path == "/api/mcp/widgets/wx/data":
-            return httpx.Response(200, json={
-                "key": "wx", "data": {"temp": 19, "humidity": 58}, "data_source": "live",
-                "fields": [{"path": "temp", "type": "int", "sample": 19},
-                           {"path": "humidity", "type": "int", "sample": 58}],
-            })
+            return httpx.Response(
+                200,
+                json={
+                    "key": "wx",
+                    "data": {"temp": 19, "humidity": 58},
+                    "data_source": "live",
+                    "fields": [
+                        {"path": "temp", "type": "int", "sample": 19},
+                        {"path": "humidity", "type": "int", "sample": 58},
+                    ],
+                },
+            )
         return httpx.Response(404, json={"error": "x"})
 
     c.app.state.tesserae.raw._transport = httpx.MockTransport(handler)
@@ -650,8 +820,13 @@ def test_mine_apply_writes_manifest(mine_client):
 def test_mine_never_writes_from_error(mine_client):
     # No live data endpoint match + no manifest sample -> error, nothing written.
     mine_client.app.state.tesserae.raw._transport = httpx.MockTransport(
-        lambda req: httpx.Response(200, text="ok") if req.url.path == "/healthz"
-        else httpx.Response(200, json={"data": {"error": "boom"}, "data_source": "error", "fields": []})
+        lambda req: (
+            httpx.Response(200, text="ok")
+            if req.url.path == "/healthz"
+            else httpx.Response(
+                200, json={"data": {"error": "boom"}, "data_source": "error", "fields": []}
+            )
+        )
     )
     r = mine_client.post("/studio/api/mine/wx", json={"source": "auto"})
     assert r.status_code == 400

@@ -15,11 +15,11 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .config import SIZE_DIMENSIONS, Settings
-from .proxy import forward
 from .flatten import flatten_fields
 from .linter import lint_widget
 from .mine import MineError, apply_to_manifest, mine
 from .packager import package_widget
+from .proxy import forward
 from .publish import (
     TAGS,
     PublishError,
@@ -27,10 +27,12 @@ from .publish import (
     build_catalog_entry,
     bundle_folders,
     package,
-    pr_body as _pr_body,
     sha256_of_url,
     upsert_into_index,
     validate_entry,
+)
+from .publish import (
+    pr_body as _pr_body,
 )
 from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
 from .source import TesseraeSource, catalog_entry
@@ -93,7 +95,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             {
                 "tesserae_url": settings.tesserae_url,
                 "tesserae_path": str(settings.tesserae_path) if settings.tesserae_path else None,
-                "tesserae_data_root": str(settings.tesserae_data_root) if settings.tesserae_data_root else None,
+                "tesserae_data_root": str(settings.tesserae_data_root)
+                if settings.tesserae_data_root
+                else None,
                 "mcp_token_set": bool(settings.mcp_token),
                 # How a workspace widget registers with this Tesserae right now.
                 "registration": await _registration_method(),
@@ -139,14 +143,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             base = {"widgets": [], "appearance": {}, "source": "none", "error": str(exc)}
         seen = {w["key"] for w in ws_entries}
         ref = [
-            {**w, "editable": False, "origin": base.get("source", "tesserae"),
-             "registered": w["key"] in live_keys}
+            {
+                **w,
+                "editable": False,
+                "origin": base.get("source", "tesserae"),
+                "registered": w["key"] in live_keys,
+            }
             for w in base.get("widgets", [])
             if w["key"] not in seen
         ]
         return JSONResponse(
-            {"widgets": ws_entries + ref, "appearance": base.get("appearance", {}),
-             "source": base.get("source", "none")}
+            {
+                "widgets": ws_entries + ref,
+                "appearance": base.get("appearance", {}),
+                "source": base.get("source", "none"),
+            }
         )
 
     @app.get("/studio/api/widgets/{key}/data")
@@ -170,7 +181,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"widget": widget, "path": relpath, "content": content})
 
     @app.put("/studio/api/files/{widget}/{relpath:path}")
-    async def write_file(widget: str, relpath: str, content: str = Body(..., embed=True)) -> JSONResponse:
+    async def write_file(
+        widget: str, relpath: str, content: str = Body(..., embed=True)
+    ) -> JSONResponse:
         try:
             result = app.state.workspace.write_file(widget, relpath, content)
         except WorkspaceError as exc:
@@ -204,7 +217,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"error": "name is required"}, status_code=400)
         try:
             core_id, member_ids, folders = scaffold_bundle_files(
-                name, spec.get("members") or None, admin=spec.get("admin", True) is not False,
+                name,
+                spec.get("members") or None,
+                admin=spec.get("admin", True) is not False,
             )
         except ScaffoldError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
@@ -218,7 +233,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ws.create_widget(fid, files)
         except WorkspaceError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        return JSONResponse({"ok": True, "core": core_id, "members": member_ids, "folders": list(folders)})
+        return JSONResponse(
+            {"ok": True, "core": core_id, "members": member_ids, "folders": list(folders)}
+        )
 
     @app.post("/studio/api/duplicate")
     async def duplicate(spec: dict = Body(...)) -> JSONResponse:
@@ -233,7 +250,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             src_dir = (tpath / "plugins" / source) if tpath else src_dir
         if not (src_dir / "plugin.json").is_file():
             return JSONResponse(
-                {"error": f"cannot duplicate '{source}': needs a disk checkout or a workspace copy"},
+                {
+                    "error": f"cannot duplicate '{source}': "
+                    "needs a disk checkout or a workspace copy"
+                },
                 status_code=400,
             )
         try:
@@ -340,7 +360,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if method == "push":
             return await _push(widget, reload)
         return JSONResponse(
-            {"error": "no way to register: connect a local Tesserae, or a remote one with the push API + mcp token."},
+            {
+                "error": "no way to register: connect a local Tesserae, "
+                "or a remote one with the push API + mcp token."
+            },
             status_code=400,
         )
 
@@ -361,7 +384,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ---- Faithful render (dithered PNG over the authed MCP surface) -------
     @app.get("/studio/api/render/{widget}.png")
-    async def render_png_endpoint(widget: str, size: str = "lg", opts: str | None = None) -> Response:
+    async def render_png_endpoint(
+        widget: str, size: str = "lg", opts: str | None = None
+    ) -> Response:
         try:
             content, ctype = await app.state.tesserae.render_png(widget, size=size, opts=opts)
         except PushError as exc:
@@ -405,7 +430,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     raise MineError(
                         f"live fetch failed and no manifest sample to fall back on: {exc}. "
                         "Register the widget with Tesserae, or add a data_schema.sample."
-                    )
+                    ) from exc
                 warnings.append(f"live data unavailable ({exc}); mined from the manifest sample.")
         sample = declared.get("sample")
         if not isinstance(sample, dict):
@@ -423,14 +448,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             manifest = json.loads(ws.read_file(widget, "plugin.json"))
         except (WorkspaceError, json.JSONDecodeError) as exc:
-            return JSONResponse({"error": f"cannot read {widget}/plugin.json: {exc}"}, status_code=400)
+            return JSONResponse(
+                {"error": f"cannot read {widget}/plugin.json: {exc}"}, status_code=400
+            )
 
         source = spec.get("source") or "auto"
         options = spec.get("options") or {}
         max_fields = int(spec.get("max_fields") or 64)
         apply = bool(spec.get("apply"))
         try:
-            data, data_source, raw_fields, warnings = await _gather_fields(widget, manifest, options, source)
+            data, data_source, raw_fields, warnings = await _gather_fields(
+                widget, manifest, options, source
+            )
         except MineError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
 
@@ -454,11 +483,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ws.write_file(widget, "plugin.json", json.dumps(merged, indent=2) + "\n")
             applied = True
 
-        return JSONResponse({
-            "ok": True, "source": source, "data_source": data_source,
-            "fields": result["fields"], "data_schema": result["data_schema"],
-            "diff": result["diff"], "applied": applied, "warnings": result["warnings"],
-        })
+        return JSONResponse(
+            {
+                "ok": True,
+                "source": source,
+                "data_source": data_source,
+                "fields": result["fields"],
+                "data_schema": result["data_schema"],
+                "diff": result["diff"],
+                "applied": applied,
+                "warnings": result["warnings"],
+            }
+        )
 
     # ---- Package + publish to the catalog (M6) ---------------------------
     def _marketplace_schema() -> dict | None:
@@ -481,23 +517,39 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             entry_id = opts.get("id") or widget
         return folders, entry_id
 
-    async def _entry_for(widget: str, opts: dict) -> tuple[dict | None, list[str], JSONResponse | None]:
+    async def _entry_for(
+        widget: str, opts: dict
+    ) -> tuple[dict | None, list[str], JSONResponse | None]:
         import json
 
         ws = app.state.workspace
         try:
             manifest = json.loads(ws.read_file(widget, "plugin.json"))
         except (WorkspaceError, json.JSONDecodeError) as exc:
-            return None, [], JSONResponse({"error": f"cannot read {widget}/plugin.json: {exc}"}, status_code=400)
+            return (
+                None,
+                [],
+                JSONResponse(
+                    {"error": f"cannot read {widget}/plugin.json: {exc}"}, status_code=400
+                ),
+            )
         folders, entry_id = _resolve_folders(widget, opts)
         release = dict(opts.get("release") or {})
         if release.get("tarball_url") and not release.get("sha256"):
             try:
                 release["sha256"] = await sha256_of_url(release["tarball_url"])
             except Exception as exc:  # noqa: BLE001
-                return None, [], JSONResponse({"error": f"could not fetch tarball for sha256: {exc}"}, status_code=400)
+                return (
+                    None,
+                    [],
+                    JSONResponse(
+                        {"error": f"could not fetch tarball for sha256: {exc}"}, status_code=400
+                    ),
+                )
         try:
-            entry = build_catalog_entry(manifest, entry_id=entry_id, folders=folders, opts={**opts, "release": release})
+            entry = build_catalog_entry(
+                manifest, entry_id=entry_id, folders=folders, opts={**opts, "release": release}
+            )
         except PublishError as exc:
             return None, [], JSONResponse({"error": str(exc), "tags": TAGS}, status_code=400)
         schema = _marketplace_schema()
@@ -512,7 +564,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             data, sha = package(ws.root, folders or [widget])
         except PublishError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        return JSONResponse({"ok": True, "folders": folders or [widget], "sha256": sha, "size": len(data)})
+        return JSONResponse(
+            {"ok": True, "folders": folders or [widget], "sha256": sha, "size": len(data)}
+        )
 
     @app.post("/studio/api/catalog-entry/{widget}")
     async def catalog_entry_endpoint(widget: str, opts: dict = Body(default={})) -> JSONResponse:
@@ -529,12 +583,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if err is not None:
             return err
         if errors:
-            return JSONResponse({"error": "catalog entry is invalid", "errors": errors, "entry": entry}, status_code=422)
+            return JSONResponse(
+                {"error": "catalog entry is invalid", "errors": errors, "entry": entry},
+                status_code=422,
+            )
         catalog = settings.catalog_path
         if catalog is None:
             return JSONResponse(
-                {"error": "no widget-catalog checkout found; set STUDIO_CATALOG_PATH to a tesserae-widgets clone.",
-                 "entry": entry}, status_code=400)
+                {
+                    "error": "no widget-catalog checkout found; "
+                    "set STUDIO_CATALOG_PATH to a tesserae-widgets clone.",
+                    "entry": entry,
+                },
+                status_code=400,
+            )
         index = json.loads((catalog / "widgets.json").read_text())
         new_index = upsert_into_index(index, entry)
         replacing = any(w.get("id") == entry["id"] for w in index.get("widgets", []))
@@ -547,7 +609,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "entry": entry,
             "files": {
                 "widgets.json": json.dumps(new_index, indent=2) + "\n",
-                f"screenshots/{entry['id']}/lg.png": "<render lg via /studio/api/render/{widget}.png?size=lg>",
+                f"screenshots/{entry['id']}/lg.png": (
+                    "<render lg via /studio/api/render/{widget}.png?size=lg>"
+                ),
             },
             "screenshot_ready": registered and (await app.state.source.status())["faithful"],
             "pr_title": f"{'Update' if replacing else 'Add'} {entry['name']} ({entry['id']})",
@@ -557,24 +621,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"ok": True, **plan})
         if spec.get("confirm") is not True:
             return JSONResponse(
-                {"error": "opening the real PR is gated. Re-run with dry_run:false AND confirm:true. "
-                          "First publish the widget to its own GitHub repo + tag the release so tarball_url resolves.",
-                 **plan}, status_code=400)
+                {
+                    "error": "opening the real PR is gated. "
+                    "Re-run with dry_run:false AND confirm:true. First publish the widget "
+                    "to its own GitHub repo + tag the release so tarball_url resolves.",
+                    **plan,
+                },
+                status_code=400,
+            )
         # Real PR: fetch the lg screenshot, then clone/branch/commit/push/gh pr create.
         try:
             png, _ = await app.state.tesserae.render_png(widget, size="lg")
         except Exception as exc:  # noqa: BLE001
             return JSONResponse(
-                {"error": f"could not render the lg screenshot (register the widget + run Tesserae in debug): {exc}"},
-                status_code=400)
+                {
+                    "error": "could not render the lg screenshot "
+                    f"(register the widget + run Tesserae in debug): {exc}"
+                },
+                status_code=400,
+            )
         try:
             res = await asyncio.to_thread(
-                assemble_pr, settings.catalog_repo, entry, plan["files"]["widgets.json"], png,
-                title=plan["pr_title"], body=plan["pr_body"], push=True,
+                assemble_pr,
+                settings.catalog_repo,
+                entry,
+                plan["files"]["widgets.json"],
+                png,
+                title=plan["pr_title"],
+                body=plan["pr_body"],
+                push=True,
             )
         except PublishError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        return JSONResponse({"ok": True, "pr_url": res.get("pr_url"), "branch": res["branch"], "entry": entry})
+        return JSONResponse(
+            {"ok": True, "pr_url": res.get("pr_url"), "branch": res["branch"], "entry": entry}
+        )
 
     # ---- Widget linter (the Golden Rules) --------------------------------
     @app.get("/studio/api/lint/{widget}")
@@ -591,19 +672,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except json.JSONDecodeError as exc:
             manifest = {}
             # Surface the parse error itself as a finding instead of failing.
-            bad = [{"rule": "manifest-json", "level": "error",
-                    "message": f"plugin.json is not valid JSON: {exc}", "file": "plugin.json", "line": exc.lineno}]
+            bad = [
+                {
+                    "rule": "manifest-json",
+                    "level": "error",
+                    "message": f"plugin.json is not valid JSON: {exc}",
+                    "file": "plugin.json",
+                    "line": exc.lineno,
+                }
+            ]
             return JSONResponse({"widget": widget, "findings": bad, "errors": 1, "warnings": 0})
         if manifest.get("kind") not in (None, "widget"):
             # Companion plugins (data/admin) aren't widgets; the widget rules
             # (client.js, fragments, ...) don't apply.
-            return JSONResponse({"widget": widget, "findings": [], "errors": 0, "warnings": 0,
-                                 "note": f"companion plugin (kind {manifest.get('kind')}); not linted as a widget"})
+            return JSONResponse(
+                {
+                    "widget": widget,
+                    "findings": [],
+                    "errors": 0,
+                    "warnings": 0,
+                    "note": f"companion plugin (kind {manifest.get('kind')}); "
+                    "not linted as a widget",
+                }
+            )
         findings = lint_widget(files, manifest, schema=_load_schema())
         errors = sum(1 for f in findings if f["level"] == "error")
         return JSONResponse(
-            {"widget": widget, "findings": findings,
-             "errors": errors, "warnings": len(findings) - errors}
+            {
+                "widget": widget,
+                "findings": findings,
+                "errors": errors,
+                "warnings": len(findings) - errors,
+            }
         )
 
     # ---- Assets: workspace-first, then disk, then live proxy -------------

@@ -80,11 +80,13 @@ def test_author_unit_not_overwritten():
 
 
 def test_drift_report():
-    declared = {"fields": [
-        {"name": "temp", "type": "num", "unit": "°"},  # unchanged (unit matches)
-        {"name": "gone", "type": "str"},               # removed
-        {"name": "humidity", "type": "str"},           # changed (str -> num)
-    ]}
+    declared = {
+        "fields": [
+            {"name": "temp", "type": "num", "unit": "°"},  # unchanged (unit matches)
+            {"name": "gone", "type": "str"},  # removed
+            {"name": "humidity", "type": "str"},  # changed (str -> num)
+        ]
+    }
     diff = mine(flatten_fields(SAMPLE), SAMPLE, declared)["diff"]
     assert "gone" in diff["removed"]
     assert "humidity" in diff["changed"]

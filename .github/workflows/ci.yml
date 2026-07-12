@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  server:
+    name: server (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: server/pyproject.toml
+      - name: Install
+        run: pip install -e "server[dev]"
+      - name: Ruff lint
+        run: ruff check server
+      - name: Ruff format
+        run: ruff format --check server
+      - name: Test
+        run: pytest server/tests
+
+  web:
+    name: web (node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18", "20"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: web
+      - name: Lint
+        run: npm run lint
+        working-directory: web
+      - name: Build (typecheck)
+        run: npm run build
+        working-directory: web

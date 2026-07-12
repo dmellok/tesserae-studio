@@ -1,5 +1,7 @@
 # tesserae-studio
 
+[![CI](https://github.com/dmellok/tesserae-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/dmellok/tesserae-studio/actions/workflows/ci.yml)
+
 Author **Tesserae widgets** end to end: a code editor with live and faithful preview, a
 widget linter, data-schema mining, and an **MCP authoring server** that an agent (Claude
 Code / Desktop) drives from scaffold to a registered, rendering widget. Studio is a separate

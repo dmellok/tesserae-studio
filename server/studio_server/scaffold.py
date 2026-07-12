@@ -56,7 +56,11 @@ def scaffold_files(
     if archetype not in _ARCHETYPES:
         archetype = "stat"
     body_class, icon = _ARCHETYPES[archetype]
-    frags = fragments if fragments else _DEFAULT_FRAGMENTS.get(archetype, [{"id": "detail", "label": "Detail"}])
+    frags = (
+        fragments
+        if fragments
+        else _DEFAULT_FRAGMENTS.get(archetype, [{"id": "detail", "label": "Detail"}])
+    )
     frags = [_normalise_fragment(f) for f in frags]
 
     files: dict[str, str] = {
@@ -80,7 +84,9 @@ def _normalise_fragment(f: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _manifest(key: str, name: str, icon: str, frags: list[dict[str, Any]], with_server: bool) -> str:
+def _manifest(
+    key: str, name: str, icon: str, frags: list[dict[str, Any]], with_server: bool
+) -> str:
     manifest: dict[str, Any] = {
         "tesserae_compat": "1.x",
         "name": name,
@@ -93,7 +99,17 @@ def _manifest(key: str, name: str, icon: str, frags: list[dict[str, Any]], with_
             {"name": "title", "type": "string", "label": "Title", "default": name},
         ],
         "fragments": [
-            {k: v for k, v in {"id": f["id"], "label": f["label"], "icon": f["icon"], "w": f["w"], "h": f["h"]}.items() if v is not None}
+            {
+                k: v
+                for k, v in {
+                    "id": f["id"],
+                    "label": f["label"],
+                    "icon": f["icon"],
+                    "w": f["w"],
+                    "h": f["h"],
+                }.items()
+                if v is not None
+            }
             for f in frags
         ],
     }
@@ -170,7 +186,9 @@ from __future__ import annotations
 from typing import Any
 
 
-def fetch(options: dict[str, Any], settings: dict[str, Any], *, ctx: dict[str, Any]) -> dict[str, Any]:
+def fetch(
+    options: dict[str, Any], settings: dict[str, Any], *, ctx: dict[str, Any]
+) -> dict[str, Any]:
     # Replace with a real fetch via app.plugin_http.fetch_json / fetch_text.
     return {"value": 0}
 '''

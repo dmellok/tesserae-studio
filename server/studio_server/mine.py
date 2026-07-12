@@ -76,25 +76,38 @@ def classify(raw: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     base = {"name": path, "label": humanize(key), "sample": sample}
 
     if ftype == "object[]":
-        return None, f"'{path}' is an array of objects; bind '{path}[].<field>' for a chart, not '{path}'."
+        return (
+            None,
+            f"'{path}' is an array of objects; bind '{path}[].<field>' for a chart, not '{path}'.",
+        )
 
     if ftype == "array":
         numeric = isinstance(sample, list) and bool(sample) and all(_is_number(v) for v in sample)
-        return {**base, "type": "arr", "display": "sparkline" if numeric else "list",
-                "chartable": numeric}, None
+        return {
+            **base,
+            "type": "arr",
+            "display": "sparkline" if numeric else "list",
+            "chartable": numeric,
+        }, None
 
     if is_pluck:
         numeric = ftype in ("int", "float")
-        return {**base, "type": "arr", "display": "sparkline" if numeric else "list",
-                "chartable": numeric}, None
+        return {
+            **base,
+            "type": "arr",
+            "display": "sparkline" if numeric else "list",
+            "chartable": numeric,
+        }, None
 
     if ftype in ("int", "float"):
         return {**base, "type": "num", "display": "number", "chartable": False}, None
     if ftype == "bool":
         return {**base, "type": "str", "display": "boolean", "chartable": False}, None
     if ftype == "NoneType":
-        return ({**base, "type": "str", "display": "text", "chartable": False},
-                f"'{path}' was null; type guessed as str, confirm with live data.")
+        return (
+            {**base, "type": "str", "display": "text", "chartable": False},
+            f"'{path}' was null; type guessed as str, confirm with live data.",
+        )
     # str and anything else
     field = {**base, "type": "str", "display": "text", "chartable": False}
     fmt = _iso_format(sample)
@@ -174,10 +187,13 @@ def _drift(mined: list[dict], declared: list[dict]) -> dict[str, list]:
     added = sorted(n for n in mined_by if n not in decl_by)
     removed = sorted(n for n in decl_by if n not in mined_by)
     changed = sorted(
-        n for n in mined_by
+        n
+        for n in mined_by
         if n in decl_by
-        and (mined_by[n].get("type") != decl_by[n].get("type")
-             or mined_by[n].get("unit") != decl_by[n].get("unit"))
+        and (
+            mined_by[n].get("type") != decl_by[n].get("type")
+            or mined_by[n].get("unit") != decl_by[n].get("unit")
+        )
     )
     return {"added": added, "removed": removed, "changed": changed}
 

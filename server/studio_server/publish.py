@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import hashlib
 import io
-import json
 import tarfile
 from pathlib import Path
 from typing import Any
@@ -22,8 +21,17 @@ from typing import Any
 import httpx
 
 TAGS = [
-    "calendar", "clock", "finance", "github", "home-assistant", "media",
-    "news", "sports", "transit", "utility", "weather",
+    "calendar",
+    "clock",
+    "finance",
+    "github",
+    "home-assistant",
+    "media",
+    "news",
+    "sports",
+    "transit",
+    "utility",
+    "weather",
 ]
 
 
@@ -115,7 +123,11 @@ def build_catalog_entry(
         "name": opts.get("name") or str(manifest.get("name") or entry_id),
         "description": (opts.get("description") or str(manifest.get("description") or ""))[:280],
         "icon": opts.get("icon") or str(manifest.get("icon") or "ph-puzzle-piece"),
-        "author": {k: v for k, v in {"name": author.get("name"), "github": author.get("github")}.items() if v},
+        "author": {
+            k: v
+            for k, v in {"name": author.get("name"), "github": author.get("github")}.items()
+            if v
+        },
         "tags": tags,
         "kind": "widget",
         "tesserae_compat": str(manifest.get("tesserae_compat") or "1.x"),
@@ -158,7 +170,8 @@ def pr_body(entry: dict[str, Any]) -> str:
         [
             f"Adds **{entry['name']}** (`{entry['id']}`) to the catalog.",
             "",
-            f"- **kind:** {entry['kind']}" + (f" (bundle: {', '.join(folders)})" if folders else ""),
+            f"- **kind:** {entry['kind']}"
+            + (f" (bundle: {', '.join(folders)})" if folders else ""),
             f"- **tags:** {', '.join(entry['tags'])}",
             f"- **version:** {rel['version']}",
             f"- **source:** {entry.get('source', '(not set)')}",
@@ -194,12 +207,21 @@ def assemble_pr(
     work = tmp / "repo"
 
     def run(*args: str, check: bool = True) -> subprocess.CompletedProcess:
-        return subprocess.run(args, cwd=str(work) if work.exists() else None,
-                              capture_output=True, text=True, check=check)
+        return subprocess.run(
+            args,
+            cwd=str(work) if work.exists() else None,
+            capture_output=True,
+            text=True,
+            check=check,
+        )
 
     try:
-        subprocess.run(["gh", "repo", "clone", repo, str(work), "--", "--depth", "1"],
-                       capture_output=True, text=True, check=True)
+        subprocess.run(
+            ["gh", "repo", "clone", repo, str(work), "--", "--depth", "1"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         branch = f"studio/widget-{entry['id']}"
         run("git", "checkout", "-b", branch)
         (work / "widgets.json").write_text(new_index_json)
@@ -208,15 +230,29 @@ def assemble_pr(
             shot.parent.mkdir(parents=True, exist_ok=True)
             shot.write_bytes(screenshot_png)
         run("git", "add", "-A")
-        run("git", "-c", "user.name=Tesserae Studio", "-c", "user.email=studio@tesserae.local",
-            "commit", "-m", title)
+        run(
+            "git",
+            "-c",
+            "user.name=Tesserae Studio",
+            "-c",
+            "user.email=studio@tesserae.local",
+            "commit",
+            "-m",
+            title,
+        )
         diffstat = run("git", "show", "--stat", "--oneline", "HEAD").stdout
-        result: dict[str, Any] = {"branch": branch, "committed": True, "pushed": False,
-                                  "diffstat": diffstat.strip(), "workdir": str(work)}
+        result: dict[str, Any] = {
+            "branch": branch,
+            "committed": True,
+            "pushed": False,
+            "diffstat": diffstat.strip(),
+            "workdir": str(work),
+        }
         if push:
             run("git", "push", "-u", "origin", branch)
-            pr = run("gh", "pr", "create", "-R", repo, "--head", branch,
-                     "--title", title, "--body", body)
+            pr = run(
+                "gh", "pr", "create", "-R", repo, "--head", branch, "--title", title, "--body", body
+            )
             result["pushed"] = True
             result["pr_url"] = pr.stdout.strip()
             shutil.rmtree(tmp, ignore_errors=True)
