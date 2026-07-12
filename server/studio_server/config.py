@@ -22,6 +22,24 @@ SIZE_DIMENSIONS: dict[str, tuple[int, int]] = {
 }
 
 
+def _ha_options() -> dict:
+    """Home Assistant add-on options. Supervisor writes the user's configured
+    options to /data/options.json for every add-on; read them here so their
+    values apply regardless of how the server process is launched. Empty for any
+    non-HA install (the file is absent). Path overridable for tests."""
+    import json
+
+    path = os.environ.get("STUDIO_HA_OPTIONS", "/data/options.json")
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
 def _autodetect_tesserae_path() -> Path | None:
     """Best-effort sibling ``tesserae`` checkout next to this repo, so Studio
     runs standalone (disk assets + disk catalog) out of the box with no running
@@ -72,7 +90,15 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         repo_root = Path(__file__).resolve().parents[2]  # tesserae-studio/
-        url = os.environ.get("STUDIO_TESSERAE_URL", "http://localhost:8765").rstrip("/")
+        # HA add-on options are a fallback layer under real env vars: an operator
+        # who sets STUDIO_TESSERAE_URL directly still wins, otherwise the add-on's
+        # tesserae_url / mcp_token option applies.
+        ha = _ha_options()
+        url = (
+            os.environ.get("STUDIO_TESSERAE_URL")
+            or (ha.get("tesserae_url") if isinstance(ha.get("tesserae_url"), str) else None)
+            or "http://localhost:8765"
+        ).rstrip("/")
         port = int(os.environ.get("STUDIO_PORT", "8770"))
         # Widgets being authored live here. Defaults to the repo's tracked
         # examples/ so the editor always has something to open; point it at a
@@ -98,7 +124,11 @@ class Settings:
         else:
             data_root = None
 
-        token = os.environ.get("STUDIO_TESSERAE_MCP_TOKEN") or None
+        token = (
+            os.environ.get("STUDIO_TESSERAE_MCP_TOKEN")
+            or (ha.get("mcp_token") if isinstance(ha.get("mcp_token"), str) else None)
+            or None
+        )
 
         raw_catalog = os.environ.get("STUDIO_CATALOG_PATH")
         if raw_catalog:

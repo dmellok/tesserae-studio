@@ -1,60 +1,51 @@
-"""The console-script helpers: the Home Assistant options -> env bridge."""
+"""Home Assistant add-on options -> Settings, layered under real env vars.
+
+Read inside Settings.from_env (config.py) so the add-on's tesserae_url / mcp_token
+apply no matter how the server is launched (console script or uvicorn directly)."""
 
 from __future__ import annotations
 
 import json
 
-from studio_server import cli
+from studio_server.config import Settings
 
 
-def _run_bridge(monkeypatch, tmp_path, options: dict | None, env: dict[str, str]):
-    if options is None:
-        monkeypatch.setattr(cli, "_HA_OPTIONS", str(tmp_path / "missing.json"))
-    else:
-        p = tmp_path / "options.json"
-        p.write_text(json.dumps(options))
-        monkeypatch.setattr(cli, "_HA_OPTIONS", str(p))
-    for k in ("STUDIO_TESSERAE_URL", "STUDIO_TESSERAE_MCP_TOKEN"):
-        monkeypatch.delenv(k, raising=False)
-    for k, v in env.items():
-        monkeypatch.setenv(k, v)
-    cli._load_ha_options()
+def _write_options(tmp_path, options: dict) -> str:
+    p = tmp_path / "options.json"
+    p.write_text(json.dumps(options))
+    return str(p)
 
 
-def test_maps_ha_options_to_env(monkeypatch, tmp_path):
-    _run_bridge(
-        monkeypatch,
-        tmp_path,
-        {"tesserae_url": "http://tess:8765", "mcp_token": "secret"},
-        env={},
+def test_ha_options_supply_tesserae_url(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "STUDIO_HA_OPTIONS", _write_options(tmp_path, {"tesserae_url": "http://tess:8765"})
     )
-    import os
+    monkeypatch.delenv("STUDIO_TESSERAE_URL", raising=False)
+    s = Settings.from_env()
+    assert s.tesserae_url == "http://tess:8765"
 
-    assert os.environ["STUDIO_TESSERAE_URL"] == "http://tess:8765"
-    assert os.environ["STUDIO_TESSERAE_MCP_TOKEN"] == "secret"
+
+def test_ha_options_supply_mcp_token(monkeypatch, tmp_path):
+    monkeypatch.setenv("STUDIO_HA_OPTIONS", _write_options(tmp_path, {"mcp_token": "secret"}))
+    monkeypatch.delenv("STUDIO_TESSERAE_MCP_TOKEN", raising=False)
+    assert Settings.from_env().mcp_token == "secret"
 
 
-def test_existing_env_wins(monkeypatch, tmp_path):
-    _run_bridge(
-        monkeypatch,
-        tmp_path,
-        {"tesserae_url": "http://from-options:8765"},
-        env={"STUDIO_TESSERAE_URL": "http://from-env:8765"},
+def test_env_var_wins_over_ha_option(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "STUDIO_HA_OPTIONS", _write_options(tmp_path, {"tesserae_url": "http://from-options:8765"})
     )
-    import os
+    monkeypatch.setenv("STUDIO_TESSERAE_URL", "http://from-env:8765")
+    assert Settings.from_env().tesserae_url == "http://from-env:8765"
 
-    assert os.environ["STUDIO_TESSERAE_URL"] == "http://from-env:8765"
 
-
-def test_blank_option_ignored(monkeypatch, tmp_path):
-    _run_bridge(monkeypatch, tmp_path, {"tesserae_url": "", "mcp_token": ""}, env={})
-    import os
-
-    assert "STUDIO_TESSERAE_URL" not in os.environ
+def test_blank_ha_option_falls_back_to_default(monkeypatch, tmp_path):
+    monkeypatch.setenv("STUDIO_HA_OPTIONS", _write_options(tmp_path, {"tesserae_url": ""}))
+    monkeypatch.delenv("STUDIO_TESSERAE_URL", raising=False)
+    assert Settings.from_env().tesserae_url == "http://localhost:8765"
 
 
 def test_no_options_file_is_noop(monkeypatch, tmp_path):
-    _run_bridge(monkeypatch, tmp_path, None, env={})
-    import os
-
-    assert "STUDIO_TESSERAE_URL" not in os.environ
+    monkeypatch.setenv("STUDIO_HA_OPTIONS", str(tmp_path / "missing.json"))
+    monkeypatch.delenv("STUDIO_TESSERAE_URL", raising=False)
+    assert Settings.from_env().tesserae_url == "http://localhost:8765"
