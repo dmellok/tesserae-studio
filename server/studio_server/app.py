@@ -6,22 +6,24 @@ Run: ``uvicorn studio_server.app:app --port 8770 --reload``
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .config import SIZE_DIMENSIONS, Settings
 from .proxy import forward
 from .linter import lint_widget
+from .packager import package_widget
 from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
 from .source import TesseraeSource, catalog_entry
 from .sync import SyncError, is_synced
 from .sync import sync as sync_widget
 from .sync import unsync as unsync_widget
-from .tesserae import TesseraeClient
+from .tesserae import PushError, TesseraeClient
 from .workspace import Workspace, WorkspaceError
 
 # Asset prefixes Studio owns (disk-first, live-proxy fallback). Their on-disk
@@ -36,7 +38,7 @@ _LIVE_PREFIXES = ("/api/mcp", "/_test")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
-    client = TesseraeClient(settings.tesserae_url)
+    client = TesseraeClient(settings.tesserae_url, mcp_token=settings.mcp_token)
     app.state.tesserae = client
     app.state.source = TesseraeSource(settings.tesserae_path, client)
     app.state.workspace = Workspace(settings.workdir)
@@ -78,6 +80,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "tesserae_url": settings.tesserae_url,
                 "tesserae_path": str(settings.tesserae_path) if settings.tesserae_path else None,
                 "tesserae_data_root": str(settings.tesserae_data_root) if settings.tesserae_data_root else None,
+                "mcp_token_set": bool(settings.mcp_token),
+                # How a workspace widget registers with this Tesserae right now.
+                "registration": await _registration_method(),
                 "sizes": {k: {"w": w, "h": h} for k, (w, h) in SIZE_DIMENSIONS.items()},
             }
         )
@@ -226,6 +231,101 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except SyncError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({"ok": True, **(await _sync_state(widget))})
+
+    # ---- Register a widget over HTTP (push, works remote / HA) -----------
+    async def _can_symlink() -> bool:
+        m = settings.marketplace_dir
+        return bool(m and settings.tesserae_is_loopback and (m.exists() or m.parent.exists()))
+
+    async def _registration_method() -> str:
+        """How Studio can register a workspace widget with the connected
+        Tesserae: a local symlink (same host), an HTTP push (remote / HA), or
+        neither. Prefer the symlink when co-located; default to push otherwise."""
+        if await _can_symlink():
+            return "symlink"
+        if await app.state.tesserae.push_available():
+            return "push"
+        return "none"
+
+    async def _await_active(widget: str, timeout: float = 30.0) -> bool:
+        """Poll until a restarting Tesserae has the widget back in its registry."""
+        deadline = asyncio.get_event_loop().time() + timeout
+        while asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(1.0)
+            if await app.state.tesserae.probe_health():
+                if widget in {w["id"] for w in await app.state.tesserae.list_authored()}:
+                    return True
+        return False
+
+    async def _push(widget: str, reload: str) -> JSONResponse:
+        wdir = app.state.workspace.root / widget
+        if not (wdir / "plugin.json").is_file():
+            return JSONResponse({"error": f"{widget} is not a workspace widget."}, status_code=400)
+        tar = package_widget(wdir, widget)
+        try:
+            res = await app.state.tesserae.install_widget(tar, widget_id=widget, reload=reload)
+        except PushError as exc:
+            return JSONResponse({"error": exc.message}, status_code=exc.status)
+        if res.get("restarting"):
+            res["active"] = await _await_active(widget)
+        return JSONResponse({**res, "method": "push"})
+
+    @app.post("/studio/api/push/{widget}")
+    async def push_endpoint(widget: str, reload: str = "auto") -> JSONResponse:
+        return await _push(widget, reload)
+
+    @app.delete("/studio/api/push/{widget}")
+    async def push_delete_endpoint(widget: str, reload: str = "auto") -> JSONResponse:
+        try:
+            res = await app.state.tesserae.uninstall_widget(widget, reload=reload)
+        except PushError as exc:
+            return JSONResponse({"error": exc.message}, status_code=exc.status)
+        return JSONResponse({**res, "method": "push"})
+
+    @app.get("/studio/api/push")
+    async def push_list_endpoint() -> JSONResponse:
+        return JSONResponse({"widgets": await app.state.tesserae.list_authored()})
+
+    # Unified register: pick the symlink (local) or push (remote) path.
+    @app.post("/studio/api/register/{widget}")
+    async def register_endpoint(widget: str, reload: str = "auto") -> JSONResponse:
+        method = await _registration_method()
+        if method == "symlink":
+            try:
+                sync_widget(settings.marketplace_dir, app.state.workspace.root, widget)
+            except SyncError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+            return JSONResponse({"ok": True, "method": "symlink", **(await _sync_state(widget))})
+        if method == "push":
+            return await _push(widget, reload)
+        return JSONResponse(
+            {"error": "no way to register: connect a local Tesserae, or a remote one with the push API + mcp token."},
+            status_code=400,
+        )
+
+    @app.delete("/studio/api/register/{widget}")
+    async def unregister_endpoint(widget: str) -> JSONResponse:
+        # Remove whichever registration exists: a local symlink, or a push.
+        if is_synced(settings.marketplace_dir, app.state.workspace.root, widget):
+            try:
+                unsync_widget(settings.marketplace_dir, app.state.workspace.root, widget)
+            except SyncError as exc:
+                return JSONResponse({"error": str(exc)}, status_code=400)
+            return JSONResponse({"ok": True, "method": "symlink", **(await _sync_state(widget))})
+        try:
+            res = await app.state.tesserae.uninstall_widget(widget)
+        except PushError as exc:
+            return JSONResponse({"error": exc.message}, status_code=exc.status)
+        return JSONResponse({**res, "method": "push"})
+
+    # ---- Faithful render (dithered PNG over the authed MCP surface) -------
+    @app.get("/studio/api/render/{widget}.png")
+    async def render_png_endpoint(widget: str, size: str = "lg", opts: str | None = None) -> Response:
+        try:
+            content, ctype = await app.state.tesserae.render_png(widget, size=size, opts=opts)
+        except PushError as exc:
+            return JSONResponse({"error": exc.message}, status_code=exc.status)
+        return Response(content=content, media_type=ctype)
 
     # ---- Manifest schema for Monaco JSON validation ----------------------
     def _load_schema() -> dict | None:

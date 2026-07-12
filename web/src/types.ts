@@ -55,6 +55,9 @@ export interface Config {
   tesserae_url: string;
   tesserae_path: string | null;
   tesserae_data_root: string | null;
+  mcp_token_set: boolean;
+  // How a workspace widget registers with the connected Tesserae right now.
+  registration: "symlink" | "push" | "none";
   sizes: Record<string, SizePreset>;
 }
 

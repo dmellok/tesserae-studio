@@ -8,9 +8,9 @@ import {
   getWidgetData,
   lintWidget,
   readFile,
+  registerWidget,
   scaffoldWidget,
-  syncWidget,
-  unsyncWidget,
+  unregisterWidget,
   writeFile,
 } from "./api";
 import type { LintFinding } from "./api";
@@ -103,7 +103,7 @@ app.innerHTML = `
       <div class="pane-head">
         <span class="pane-title" id="editor-widget">—</span>
         <span class="pane-sub" id="editor-sub"></span>
-        <button class="pill sync" id="sync-btn" hidden><span class="dot"></span><span id="sync-text"></span></button>
+        <button class="pill register" id="register-btn" hidden><span class="dot"></span><span id="register-text"></span></button>
         <button class="pill" id="lint-pill" hidden><span class="dot"></span><span id="lint-text"></span></button>
         <button class="btn" id="save" disabled>Save <kbd>⌘S</kbd></button>
       </div>
@@ -144,9 +144,9 @@ const lintPanel = $<HTMLDivElement>("lint-panel");
 lintPill.addEventListener("click", () => {
   if (lintPanel.innerHTML) lintPanel.hidden = !lintPanel.hidden;
 });
-const syncBtn = $<HTMLButtonElement>("sync-btn");
-const syncText = $<HTMLSpanElement>("sync-text");
-syncBtn.addEventListener("click", () => void toggleSync());
+const registerBtn = $<HTMLButtonElement>("register-btn");
+const registerText = $<HTMLSpanElement>("register-text");
+registerBtn.addEventListener("click", () => void toggleRegister());
 
 const editor = new WidgetEditor($<HTMLDivElement>("monaco"));
 editor.onDirtyChange(() => {
@@ -258,44 +258,56 @@ async function render() {
   }
 }
 
-// -- sync to Tesserae ------------------------------------------------------
-function renderSync(widget: Widget) {
-  const canSync = !!state.config?.tesserae_data_root;
-  if (!widget.editable || !canSync) {
-    syncBtn.hidden = true;
+// -- register with Tesserae (symlink when local, push over MCP when remote) -
+function renderRegister(widget: Widget) {
+  const method = state.config?.registration ?? "none";
+  if (!widget.editable || method === "none") {
+    registerBtn.hidden = true;
     return;
   }
-  syncBtn.hidden = false;
-  syncBtn.classList.remove("ok", "warn");
+  registerBtn.hidden = false;
+  registerBtn.classList.remove("ok", "warn");
+  const how = method === "push" ? "Push over MCP" : "Symlink";
   if (widget.registered) {
-    syncBtn.classList.add("ok");
-    syncText.textContent = "registered · live";
-    syncBtn.title = "Live in Tesserae (real data + faithful render). Click to unsync.";
+    registerBtn.classList.add("ok");
+    registerText.textContent = "registered · live";
+    registerBtn.title = "Live in Tesserae (real data + faithful render). Click to unregister.";
   } else if (widget.synced) {
-    syncBtn.classList.add("warn");
-    syncText.textContent = "synced · restart Tesserae";
-    syncBtn.title = "Symlinked into Tesserae. Restart Tesserae to register it. Click to unsync.";
+    registerBtn.classList.add("warn");
+    registerText.textContent = "synced · restart Tesserae";
+    registerBtn.title = "Symlinked into Tesserae. Restart Tesserae to register it. Click to unregister.";
   } else {
-    syncText.textContent = "Sync to Tesserae";
-    syncBtn.title = "Symlink this widget into Tesserae for live data + faithful render.";
+    registerText.textContent = "Register to Tesserae";
+    registerBtn.title = `${how} this widget into Tesserae for live data + faithful render.`;
   }
 }
 
-async function toggleSync() {
+async function toggleRegister() {
   const w = state.widget;
   if (!w?.editable) return;
+  const registered = w.registered || w.synced;
+  registerBtn.disabled = true;
   try {
-    const res = w.synced ? await unsyncWidget(w.key) : await syncWidget(w.key);
-    await refreshCatalog(w.key); // pick up fresh synced/registered flags
-    if (state.widget) renderSync(state.widget);
-    if (res.needs_reload)
-      setNote(`Synced ${w.key}. Restart Tesserae to register it (then it gets live data + faithful render).`, "warn");
-    else if (res.registered) setNote(`${w.key} is registered and live.`, "");
-    else setNote(`Unsynced ${w.key}.`, "");
+    const res = registered ? await unregisterWidget(w.key) : await registerWidget(w.key);
+    await refreshCatalog(w.key); // pick up fresh registered/synced flags
+    if (state.widget) renderRegister(state.widget);
+    if (registered) setNote(`Unregistered ${w.key}.`, "");
+    else if (res.method === "push")
+      setNote(
+        res.active
+          ? `Pushed ${w.key} to Tesserae over MCP. Live now.`
+          : `Pushed ${w.key}; Tesserae is restarting to register it.`,
+        res.active ? "" : "warn",
+      );
+    else if (res.needs_reload)
+      setNote(`Synced ${w.key}. Restart Tesserae to register it (then live data + faithful render).`, "warn");
+    else setNote(`${w.key} is registered and live.`, "");
     state.version = Date.now(); // re-evaluate the data source (live vs sample)
     await render();
   } catch (err) {
-    setNote(`Sync failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+    setNote(`Register failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+  } finally {
+    registerBtn.disabled = false;
   }
 }
 
@@ -395,7 +407,7 @@ async function loadEditor(widget: Widget) {
     $<HTMLSpanElement>("editor-widget").textContent = widget.name;
     $<HTMLSpanElement>("editor-sub").textContent = "read-only";
     void runLint(widget); // hides the pill for read-only widgets
-    syncBtn.hidden = true;
+    registerBtn.hidden = true;
     return;
   }
   emptyEl.hidden = true;
@@ -424,7 +436,7 @@ async function loadEditor(widget: Widget) {
   renderTabs();
   saveBtn.disabled = true;
   void runLint(widget);
-  renderSync(widget);
+  renderRegister(widget);
 }
 
 async function save() {

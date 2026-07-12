@@ -42,7 +42,7 @@ def _make_client(settings: Settings) -> TestClient:
 def live_client(tmp_path):
     """No disk checkout: assets + catalog come from the (mock) live instance."""
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=None, tesserae_data_root=None
+        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=None, tesserae_data_root=None, mcp_token=None
     )
     c = _make_client(settings)
     yield c
@@ -75,7 +75,7 @@ def disk_client(tmp_path):
     core.joinpath("plugin.json").write_text(json.dumps({"kind": "companion", "name": "Fonts"}))
 
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=checkout, tesserae_data_root=None
+        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=checkout, tesserae_data_root=None, mcp_token=None
     )
     c = _make_client(settings)
     # Force the live probe to fail, proving disk mode is self-sufficient.
@@ -151,7 +151,7 @@ def ws_client(tmp_path):
         json.dumps({"kind": "widget", "name": "Mine", "icon": "ph-star", "fragments": []})
     )
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None, tesserae_data_root=None
+        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None, tesserae_data_root=None, mcp_token=None
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = httpx.MockTransport(
@@ -276,7 +276,7 @@ def sync_client(tmp_path):
     data_root = tmp_path / "tess-data"  # marketplace/ created on sync
     settings = Settings(
         tesserae_url="http://tess.test", port=8770, workdir=wdir,
-        tesserae_path=None, tesserae_data_root=data_root,
+        tesserae_path=None, tesserae_data_root=data_root, mcp_token=None,
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = httpx.MockTransport(lambda req: httpx.Response(404))
@@ -330,6 +330,106 @@ def test_unsync_guard_rejects_foreign_symlink(tmp_path):
     with pytest.raises(SyncError):
         unsync(market, tmp_path / "work", "w")
     assert (market / "w").is_symlink()  # not removed
+
+
+# -- push over MCP (remote / HA path) --------------------------------------
+def _mock_push_tesserae(installed):
+    """A mock Tesserae with the 0.109 push API. `installed` is a mutable set of
+    ids that the authored-list + install reflect."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        p = request.url.path
+        if p == "/healthz":
+            return httpx.Response(200, text="ok")
+        if p == "/api/mcp/catalog":
+            return httpx.Response(200, json={"widgets": [], "appearance": {}})
+        if p == "/api/mcp/widgets" and request.url.params.get("origin") == "authored":
+            return httpx.Response(200, json={"widgets": [{"id": i, "version": "0.1.0", "active": True} for i in sorted(installed)]})
+        if p == "/api/mcp/widgets/install":
+            wid = request.url.params.get("id", "widget")
+            installed.add(wid)
+            return httpx.Response(200, json={
+                "ok": True, "id": wid, "version": "0.1.0", "installed": True,
+                "reload": "in_process", "active": True, "restarting": False,
+            })
+        if p.startswith("/api/mcp/widgets/") and p.endswith("/render.png"):
+            return httpx.Response(200, content=b"\x89PNG\r\n_fake_", headers={"content-type": "image/png"})
+        if p.startswith("/api/mcp/widgets/") and request.method == "DELETE":
+            installed.discard(p.rsplit("/", 1)[-1])
+            return httpx.Response(200, json={"ok": True, "id": p.rsplit("/", 1)[-1], "reload": "in_process", "active": False, "restarting": False})
+        return httpx.Response(404, json={"error": "not found"})
+
+    return httpx.MockTransport(handler)
+
+
+@pytest.fixture
+def push_client(tmp_path):
+    """Remote Tesserae (non-loopback URL, no data root) -> HTTP push path."""
+    wdir = tmp_path / "work"
+    widget = wdir / "mywidget"
+    widget.mkdir(parents=True)
+    widget.joinpath("client.js").write_text("export default () => {}")
+    widget.joinpath("plugin.json").write_text(json.dumps({"kind": "widget", "name": "Mine"}))
+    settings = Settings(
+        tesserae_url="http://tess.remote:8765", port=8770, workdir=wdir,
+        tesserae_path=None, tesserae_data_root=None, mcp_token="tok",
+    )
+    c = _make_client(settings)
+    c.app.state.tesserae.raw._transport = _mock_push_tesserae(set())
+    yield c
+
+
+def test_packager_makes_rooted_tarball(tmp_path):
+    import io
+    import tarfile
+
+    from studio_server.packager import package_widget
+
+    w = tmp_path / "aq"
+    (w / "static").mkdir(parents=True)
+    (w / "plugin.json").write_text("{}")
+    (w / "client.js").write_text("x")
+    (w / "__pycache__").mkdir()
+    (w / "__pycache__" / "junk.pyc").write_text("nope")
+    data = package_widget(w, "air_quality")
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
+        names = tar.getnames()
+    assert "air_quality/plugin.json" in names and "air_quality/client.js" in names
+    assert not any("__pycache__" in n or n.endswith(".pyc") for n in names)
+
+
+def test_register_method_is_push_for_remote(push_client):
+    assert push_client.get("/studio/api/config").json()["registration"] == "push"
+
+
+def test_push_installs_via_mcp(push_client):
+    r = push_client.post("/studio/api/push/mywidget").json()
+    assert r["ok"] and r["method"] == "push" and r["active"] is True and r["id"] == "mywidget"
+    listed = push_client.get("/studio/api/push").json()["widgets"]
+    assert any(w["id"] == "mywidget" for w in listed)
+
+
+def test_register_dispatches_to_push(push_client):
+    r = push_client.post("/studio/api/register/mywidget").json()
+    assert r["method"] == "push" and r["active"] is True
+
+
+def test_render_png_proxied(push_client):
+    resp = push_client.get("/studio/api/render/mywidget.png?size=md")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content.startswith(b"\x89PNG")
+
+
+def test_push_error_surfaced(push_client):
+    # Swap in a transport that rejects install with a friendly error.
+    push_client.app.state.tesserae.raw._transport = httpx.MockTransport(
+        lambda req: httpx.Response(200, text="ok") if req.url.path == "/healthz"
+        else httpx.Response(200, json={"widgets": []}) if req.url.path == "/api/mcp/widgets"
+        else httpx.Response(409, json={"error": "id collides with a bundled widget"})
+    )
+    r = push_client.post("/studio/api/push/mywidget")
+    assert r.status_code == 409 and "bundled" in r.json()["error"]
 
 
 # -- unit -------------------------------------------------------------------

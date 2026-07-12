@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Cell dimensions Tesserae uses for its size presets (app/composer.py
 # SIZE_DIMENSIONS). Duplicated here so the front end can offer the same presets
@@ -49,10 +50,20 @@ class Settings:
     # there (then restarting Tesserae) registers it for live data + faithful
     # render. None when unknown.
     tesserae_data_root: Path | None
+    # MCP bearer token for the connected Tesserae. Loopback callers don't need
+    # it; remote / HA (Ingress) callers do. From Settings -> System -> MCP.
+    mcp_token: str | None
 
     @property
     def marketplace_dir(self) -> Path | None:
         return (self.tesserae_data_root / "marketplace") if self.tesserae_data_root else None
+
+    @property
+    def tesserae_is_loopback(self) -> bool:
+        """True when the connected Tesserae is on this host (so the local symlink
+        path can register widgets). Remote instances must push over HTTP."""
+        host = urlparse(self.tesserae_url).hostname or ""
+        return host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -83,7 +94,9 @@ class Settings:
         else:
             data_root = None
 
+        token = os.environ.get("STUDIO_TESSERAE_MCP_TOKEN") or None
+
         return cls(
             tesserae_url=url, port=port, workdir=workdir,
-            tesserae_path=path, tesserae_data_root=data_root,
+            tesserae_path=path, tesserae_data_root=data_root, mcp_token=token,
         )

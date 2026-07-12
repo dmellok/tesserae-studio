@@ -53,18 +53,27 @@ export const duplicateWidget = (source: string, name?: string) =>
     body: JSON.stringify({ source, name }),
   });
 
-export interface SyncState {
+export interface RegisterState {
   ok: boolean;
-  synced: boolean;
-  registered: boolean;
-  needs_reload: boolean;
+  method: "symlink" | "push";
+  // symlink path
+  synced?: boolean;
+  registered?: boolean;
+  needs_reload?: boolean;
+  // push path
+  id?: string;
+  version?: string;
+  active?: boolean;
+  restarting?: boolean;
 }
 
-export const syncWidget = (widget: string) =>
-  getJson<SyncState>(`/studio/api/sync/${encodeURIComponent(widget)}`, { method: "POST" });
+// Register a workspace widget with the connected Tesserae. The server picks the
+// method: a local symlink when co-located, an HTTP push (MCP) when remote / HA.
+export const registerWidget = (widget: string) =>
+  getJson<RegisterState>(`/studio/api/register/${encodeURIComponent(widget)}`, { method: "POST" });
 
-export const unsyncWidget = (widget: string) =>
-  getJson<SyncState>(`/studio/api/sync/${encodeURIComponent(widget)}`, { method: "DELETE" });
+export const unregisterWidget = (widget: string) =>
+  getJson<RegisterState>(`/studio/api/register/${encodeURIComponent(widget)}`, { method: "DELETE" });
 
 export interface LintFinding {
   rule: string;
