@@ -20,6 +20,18 @@ from .flatten import flatten_fields
 from .linter import lint_widget
 from .mine import MineError, apply_to_manifest, mine
 from .packager import package_widget
+from .publish import (
+    TAGS,
+    PublishError,
+    assemble_pr,
+    build_catalog_entry,
+    bundle_folders,
+    package,
+    pr_body as _pr_body,
+    sha256_of_url,
+    upsert_into_index,
+    validate_entry,
+)
 from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
 from .source import TesseraeSource, catalog_entry
 from .sync import SyncError, is_synced
@@ -447,6 +459,122 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "fields": result["fields"], "data_schema": result["data_schema"],
             "diff": result["diff"], "applied": applied, "warnings": result["warnings"],
         })
+
+    # ---- Package + publish to the catalog (M6) ---------------------------
+    def _marketplace_schema() -> dict | None:
+        import json
+
+        for base in (settings.catalog_path, settings.tesserae_path):
+            if base:
+                f = base / "schema" / "marketplace.schema.json"
+                if f.is_file():
+                    return json.loads(f.read_text())
+        return None
+
+    def _resolve_folders(widget: str, opts: dict) -> tuple[list[str] | None, str]:
+        keys = [w["key"] for w in app.state.workspace.list_widgets()]
+        folders = opts.get("folders") or bundle_folders(keys, widget)
+        if folders:
+            core = next((f for f in folders if f.endswith("_core")), None)
+            entry_id = opts.get("id") or (core[: -len("_core")] if core else widget)
+        else:
+            entry_id = opts.get("id") or widget
+        return folders, entry_id
+
+    async def _entry_for(widget: str, opts: dict) -> tuple[dict | None, list[str], JSONResponse | None]:
+        import json
+
+        ws = app.state.workspace
+        try:
+            manifest = json.loads(ws.read_file(widget, "plugin.json"))
+        except (WorkspaceError, json.JSONDecodeError) as exc:
+            return None, [], JSONResponse({"error": f"cannot read {widget}/plugin.json: {exc}"}, status_code=400)
+        folders, entry_id = _resolve_folders(widget, opts)
+        release = dict(opts.get("release") or {})
+        if release.get("tarball_url") and not release.get("sha256"):
+            try:
+                release["sha256"] = await sha256_of_url(release["tarball_url"])
+            except Exception as exc:  # noqa: BLE001
+                return None, [], JSONResponse({"error": f"could not fetch tarball for sha256: {exc}"}, status_code=400)
+        try:
+            entry = build_catalog_entry(manifest, entry_id=entry_id, folders=folders, opts={**opts, "release": release})
+        except PublishError as exc:
+            return None, [], JSONResponse({"error": str(exc), "tags": TAGS}, status_code=400)
+        schema = _marketplace_schema()
+        errors = validate_entry(entry, schema) if schema else []
+        return entry, errors, None
+
+    @app.post("/studio/api/package/{widget}")
+    async def package_endpoint(widget: str) -> JSONResponse:
+        ws = app.state.workspace
+        folders, _ = _resolve_folders(widget, {})
+        try:
+            data, sha = package(ws.root, folders or [widget])
+        except PublishError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, "folders": folders or [widget], "sha256": sha, "size": len(data)})
+
+    @app.post("/studio/api/catalog-entry/{widget}")
+    async def catalog_entry_endpoint(widget: str, opts: dict = Body(default={})) -> JSONResponse:
+        entry, errors, err = await _entry_for(widget, opts)
+        if err is not None:
+            return err
+        return JSONResponse({"entry": entry, "valid": not errors, "errors": errors})
+
+    @app.post("/studio/api/publish/{widget}")
+    async def publish_endpoint(widget: str, spec: dict = Body(default={})) -> JSONResponse:
+        import json
+
+        entry, errors, err = await _entry_for(widget, spec)
+        if err is not None:
+            return err
+        if errors:
+            return JSONResponse({"error": "catalog entry is invalid", "errors": errors, "entry": entry}, status_code=422)
+        catalog = settings.catalog_path
+        if catalog is None:
+            return JSONResponse(
+                {"error": "no widget-catalog checkout found; set STUDIO_CATALOG_PATH to a tesserae-widgets clone.",
+                 "entry": entry}, status_code=400)
+        index = json.loads((catalog / "widgets.json").read_text())
+        new_index = upsert_into_index(index, entry)
+        replacing = any(w.get("id") == entry["id"] for w in index.get("widgets", []))
+        registered = entry["id"] in (await _live_keys()) or widget in (await _live_keys())
+        plan = {
+            "dry_run": spec.get("dry_run", True) is not False,
+            "target_repo": settings.catalog_repo,
+            "branch": f"widget-{entry['id']}",
+            "action": "update" if replacing else "add",
+            "entry": entry,
+            "files": {
+                "widgets.json": json.dumps(new_index, indent=2) + "\n",
+                f"screenshots/{entry['id']}/lg.png": "<render lg via /studio/api/render/{widget}.png?size=lg>",
+            },
+            "screenshot_ready": registered and (await app.state.source.status())["faithful"],
+            "pr_title": f"{'Update' if replacing else 'Add'} {entry['name']} ({entry['id']})",
+            "pr_body": _pr_body(entry),
+        }
+        if plan["dry_run"]:
+            return JSONResponse({"ok": True, **plan})
+        if spec.get("confirm") is not True:
+            return JSONResponse(
+                {"error": "opening the real PR is gated. Re-run with dry_run:false AND confirm:true. "
+                          "First publish the widget to its own GitHub repo + tag the release so tarball_url resolves.",
+                 **plan}, status_code=400)
+        # Real PR: fetch the lg screenshot, then clone/branch/commit/push/gh pr create.
+        try:
+            png, _ = await app.state.tesserae.render_png(widget, size="lg")
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                {"error": f"could not render the lg screenshot (register the widget + run Tesserae in debug): {exc}"},
+                status_code=400)
+        try:
+            res = await asyncio.to_thread(
+                assemble_pr, settings.catalog_repo, entry, plan["files"]["widgets.json"], png,
+                title=plan["pr_title"], body=plan["pr_body"], push=True,
+            )
+        except PublishError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, "pr_url": res.get("pr_url"), "branch": res["branch"], "entry": entry})
 
     # ---- Widget linter (the Golden Rules) --------------------------------
     @app.get("/studio/api/lint/{widget}")

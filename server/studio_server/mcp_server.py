@@ -191,6 +191,53 @@ async def faithful_render(widget: str, size: str = "lg"):
     return Image(data=resp.content, format="png")
 
 
+# -- package + publish (M6) ------------------------------------------------
+@mcp.tool()
+async def package_widget(widget: str) -> dict:
+    """Build the release tarball for a widget (or its whole bundle) and return
+    its sha256 + size + folders. For the catalog, the tarball_url is normally the
+    widget's own GitHub repo release archive; use this for a self-hosted tarball
+    or to inspect what ships."""
+    return await _json("POST", f"/studio/api/package/{widget}")
+
+
+@mcp.tool()
+async def generate_catalog_entry(
+    widget: str,
+    author: dict,
+    tags: list[str],
+    release: dict,
+    source: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    official: bool | None = None,
+) -> dict:
+    """Build + validate a marketplace catalog entry against the real
+    marketplace.schema.json. author={name, github?}; tags is a non-empty subset of
+    the closed taxonomy; release={version, tarball_url, sha256} (sha256 is fetched
+    from tarball_url if omitted). Identity (id/kind/folders) is filled from the
+    manifest; a bundle gets folders. Returns {entry, valid, errors}."""
+    opts: dict[str, Any] = {"author": author, "tags": tags, "release": release}
+    for k, v in (("source", source), ("name", name), ("description", description), ("official", official)):
+        if v is not None:
+            opts[k] = v
+    return await _json("POST", f"/studio/api/catalog-entry/{widget}", json=opts)
+
+
+@mcp.tool()
+async def open_catalog_pr(widget: str, author: dict, tags: list[str], release: dict,
+                          source: str | None = None, dry_run: bool = True) -> dict:
+    """Prepare a PR to the widget catalog: validates the entry, computes the
+    widgets.json diff, and drafts the PR title/body + screenshot path. dry_run
+    (default true) returns the plan without touching GitHub; opening the real PR
+    is gated (the widget must first live in its own GitHub repo with a tagged
+    release, so tarball_url resolves)."""
+    opts: dict[str, Any] = {"author": author, "tags": tags, "release": release, "dry_run": dry_run}
+    if source is not None:
+        opts["source"] = source
+    return await _json("POST", f"/studio/api/publish/{widget}", json=opts)
+
+
 def main() -> None:
     mcp.run()
 

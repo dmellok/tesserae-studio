@@ -53,6 +53,10 @@ class Settings:
     # MCP bearer token for the connected Tesserae. Loopback callers don't need
     # it; remote / HA (Ingress) callers do. From Settings -> System -> MCP.
     mcp_token: str | None
+    # The widget catalog repo (for M6 publish). Local checkout for reading
+    # widgets.json + the marketplace schema, and the GitHub slug for the PR.
+    catalog_path: Path | None
+    catalog_repo: str
 
     @property
     def marketplace_dir(self) -> Path | None:
@@ -96,7 +100,16 @@ class Settings:
 
         token = os.environ.get("STUDIO_TESSERAE_MCP_TOKEN") or None
 
+        raw_catalog = os.environ.get("STUDIO_CATALOG_PATH")
+        if raw_catalog:
+            catalog_path: Path | None = Path(raw_catalog).expanduser()
+        else:
+            sibling = repo_root.parent / "tesserae-widgets"
+            catalog_path = sibling if (sibling / "widgets.json").is_file() else None
+        catalog_repo = os.environ.get("STUDIO_CATALOG_REPO", "dmellok/tesserae-widgets")
+
         return cls(
             tesserae_url=url, port=port, workdir=workdir,
             tesserae_path=path, tesserae_data_root=data_root, mcp_token=token,
+            catalog_path=catalog_path, catalog_repo=catalog_repo,
         )

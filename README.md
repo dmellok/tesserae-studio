@@ -7,6 +7,17 @@ repo that connects to a running Tesserae for render fidelity and the widget regi
 
 ## Status
 
+**M6 (package + catalog PR):** package a widget or bundle (tarball + sha256), generate a
+marketplace catalog entry auto-filled from the manifest (`folders` for bundles) and
+**validated against the real `marketplace.schema.json`**, and prepare the PR to
+`dmellok/tesserae-widgets`, computing the `widgets.json` diff, drafting the PR title/body,
+and pointing at the `lg` screenshot. Opening the real PR (clone → branch → commit → push →
+`gh pr create`, adding a `widgets.json` entry + `screenshots/<id>/lg.png`) is implemented and
+**gated behind explicit confirmation**, since the catalog is audit-only and `tarball_url` is
+the widget's own repo release. Tools: `package_widget`, `generate_catalog_entry`,
+`open_catalog_pr` (dry-run by default). This is the finish line: a widget goes from a prompt
+to a merge-ready catalog PR.
+
 **M5 (bundles + admin pages):** scaffold a widget **bundle**, a shared `<name>_core` companion
 (`kind: data`, with `choices()`, shared data functions, and a Flask `blueprint()` admin page
 under `templates/<id>/`) plus member widgets wired to it (their `fetch()` reaches the core via
@@ -87,8 +98,9 @@ Tesserae. Pick a widget, a fragment, and a size to preview it.
 
 Studio exposes its authoring loop as an MCP server, so an agent drives the work: `list_widgets`,
 `scaffold_widget`, `scaffold_bundle`, `duplicate_widget`, `read_file`/`write_file`,
-`lint_widget`, `mine_data_schema`, `register_widget`, `widget_data`, and `faithful_render`
-(which returns the e-ink PNG as an image). It is a thin client over the running Studio backend,
+`lint_widget`, `mine_data_schema`, `register_widget`, `widget_data`, `faithful_render`
+(which returns the e-ink PNG as an image), `package_widget`, `generate_catalog_entry`, and
+`open_catalog_pr`. It is a thin client over the running Studio backend,
 so **start the server above first** (`uvicorn studio_server.app:app`), then point your MCP
 client at:
 
@@ -117,6 +129,8 @@ Or, with the package installed (`pip install -e server`), run the console script
 | `STUDIO_TESSERAE_URL`  | `http://localhost:8765`  | Live Tesserae for data + faithful render     |
 | `STUDIO_PORT`          | `8770`                   | Thin server port                             |
 | `STUDIO_WORKDIR`       | `<repo>/examples`        | Working dir of widgets being authored        |
+| `STUDIO_CATALOG_PATH`  | autodetect `../tesserae-widgets` | Catalog clone for the publish PR (M6)  |
+| `STUDIO_CATALOG_REPO`  | `dmellok/tesserae-widgets` | Catalog GitHub repo the PR targets         |
 
 The default workdir is the tracked `examples/` so the editor always has something to open;
 point `STUDIO_WORKDIR` at a scratch directory for real authoring.

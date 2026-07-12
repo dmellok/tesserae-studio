@@ -42,7 +42,7 @@ def _make_client(settings: Settings) -> TestClient:
 def live_client(tmp_path):
     """No disk checkout: assets + catalog come from the (mock) live instance."""
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=None, tesserae_data_root=None, mcp_token=None
+        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=None, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets'
     )
     c = _make_client(settings)
     yield c
@@ -75,7 +75,7 @@ def disk_client(tmp_path):
     core.joinpath("plugin.json").write_text(json.dumps({"kind": "companion", "name": "Fonts"}))
 
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=checkout, tesserae_data_root=None, mcp_token=None
+        tesserae_url="http://tess.test", port=8770, workdir=tmp_path, tesserae_path=checkout, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets'
     )
     c = _make_client(settings)
     # Force the live probe to fail, proving disk mode is self-sufficient.
@@ -151,7 +151,7 @@ def ws_client(tmp_path):
         json.dumps({"kind": "widget", "name": "Mine", "icon": "ph-star", "fragments": []})
     )
     settings = Settings(
-        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None, tesserae_data_root=None, mcp_token=None
+        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets'
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = httpx.MockTransport(
@@ -276,7 +276,7 @@ def sync_client(tmp_path):
     data_root = tmp_path / "tess-data"  # marketplace/ created on sync
     settings = Settings(
         tesserae_url="http://tess.test", port=8770, workdir=wdir,
-        tesserae_path=None, tesserae_data_root=data_root, mcp_token=None,
+        tesserae_path=None, tesserae_data_root=data_root, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets',
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = httpx.MockTransport(lambda req: httpx.Response(404))
@@ -373,6 +373,7 @@ def push_client(tmp_path):
     settings = Settings(
         tesserae_url="http://tess.remote:8765", port=8770, workdir=wdir,
         tesserae_path=None, tesserae_data_root=None, mcp_token="tok",
+        catalog_path=None, catalog_repo="dmellok/tesserae-widgets",
     )
     c = _make_client(settings)
     c.app.state.tesserae.raw._transport = _mock_push_tesserae(set())
@@ -430,6 +431,114 @@ def test_push_error_surfaced(push_client):
     )
     r = push_client.post("/studio/api/push/mywidget")
     assert r.status_code == 409 and "bundled" in r.json()["error"]
+
+
+# -- package + publish (M6) -------------------------------------------------
+_MARKET_SCHEMA = {
+    "type": "object", "required": ["version", "widgets"],
+    "properties": {"widgets": {"type": "array", "items": {
+        "type": "object",
+        "required": ["id", "name", "description", "author", "tags", "kind", "tesserae_compat", "screenshot_sizes", "release"],
+        "properties": {
+            "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]*$"},
+            "tags": {"type": "array", "minItems": 1, "items": {"enum": ["news", "weather", "utility", "sports"]}},
+            "author": {"type": "object", "required": ["name"]},
+            "screenshot_sizes": {"type": "array", "items": {"enum": ["xs", "sm", "md", "lg"]}},
+            "release": {"type": "object", "required": ["version", "tarball_url", "sha256"], "properties": {
+                "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+                "tarball_url": {"type": "string", "pattern": "^https://"},
+            }},
+        }}}},
+}
+_GOOD_RELEASE = {
+    "version": "0.1.0",
+    "tarball_url": "https://github.com/dmellok/tesserae-widget-aq/archive/refs/tags/v0.1.0.tar.gz",
+    "sha256": "a" * 64,
+}
+
+
+@pytest.fixture
+def publish_client(tmp_path):
+    wdir = tmp_path / "work"
+    (wdir / "aq").mkdir(parents=True)
+    (wdir / "aq" / "client.js").write_text("export default () => {}")
+    (wdir / "aq" / "plugin.json").write_text(json.dumps({
+        "tesserae_compat": "1.x", "name": "Air Quality", "version": "0.1.0", "kind": "widget",
+        "icon": "ph-wind", "description": "AQI now.", "supports": {"sizes": ["lg"]},
+    }))
+    catalog = tmp_path / "catalog"
+    (catalog / "schema").mkdir(parents=True)
+    (catalog / "schema" / "marketplace.schema.json").write_text(json.dumps(_MARKET_SCHEMA))
+    (catalog / "widgets.json").write_text(json.dumps({"version": 1, "widgets": []}))
+    settings = Settings(
+        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None,
+        tesserae_data_root=None, mcp_token=None, catalog_path=catalog, catalog_repo="dmellok/tesserae-widgets",
+    )
+    c = _make_client(settings)
+    c.app.state.tesserae.raw._transport = httpx.MockTransport(lambda req: httpx.Response(404))
+    yield c
+
+
+def _entry(c, widget, **opts):
+    body = {"author": {"name": "K", "github": "dmellok"}, "tags": ["utility"], "release": _GOOD_RELEASE, **opts}
+    return c.post(f"/studio/api/catalog-entry/{widget}", json=body).json()
+
+
+def test_package_returns_sha256(publish_client):
+    r = publish_client.post("/studio/api/package/aq").json()
+    assert r["ok"] and r["folders"] == ["aq"]
+    assert len(r["sha256"]) == 64 and r["size"] > 0
+
+
+def test_catalog_entry_valid(publish_client):
+    r = _entry(publish_client, "aq")
+    assert r["valid"] is True and r["errors"] == []
+    assert r["entry"]["id"] == "aq" and r["entry"]["kind"] == "widget"
+    assert r["entry"]["release"]["sha256"] == "a" * 64
+    assert "folders" not in r["entry"]  # single widget
+
+
+def test_catalog_entry_rejects_bad_tag(publish_client):
+    r = _entry(publish_client, "aq", tags=["not-a-tag"])
+    assert r["valid"] is False and any("tags" in e for e in r["errors"])
+
+
+def test_catalog_entry_rejects_bad_sha(publish_client):
+    bad = {**_GOOD_RELEASE, "sha256": "xyz"}
+    r = _entry(publish_client, "aq", release=bad)
+    assert r["valid"] is False and any("sha256" in e for e in r["errors"])
+
+
+def test_catalog_entry_requires_author(publish_client):
+    resp = publish_client.post("/studio/api/catalog-entry/aq", json={"tags": ["utility"], "release": _GOOD_RELEASE})
+    assert resp.status_code == 400 and "author" in resp.json()["error"]
+
+
+def test_bundle_catalog_entry_has_folders(publish_client):
+    publish_client.post("/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]})
+    r = _entry(publish_client, "news_headlines", tags=["news"], name="News Bundle")
+    assert r["valid"] is True
+    assert r["entry"]["id"] == "news" and r["entry"]["folders"] == ["news_core", "news_headlines"]
+
+
+def test_publish_dry_run_plan(publish_client):
+    r = publish_client.post("/studio/api/publish/aq", json={
+        "author": {"name": "K", "github": "dmellok"}, "tags": ["utility"], "release": _GOOD_RELEASE,
+        "source": "https://github.com/dmellok/tesserae-widget-aq",
+    }).json()
+    assert r["ok"] and r["dry_run"] is True and r["target_repo"] == "dmellok/tesserae-widgets"
+    assert r["action"] == "add" and r["pr_title"].startswith("Add Air Quality")
+    assert "widgets.json" in r["files"] and "screenshots/aq/lg.png" in r["files"]
+    # the diffed index actually contains the entry
+    idx = json.loads(r["files"]["widgets.json"])
+    assert any(w["id"] == "aq" for w in idx["widgets"])
+
+
+def test_publish_real_pr_is_gated(publish_client):
+    resp = publish_client.post("/studio/api/publish/aq", json={
+        "author": {"name": "K"}, "tags": ["utility"], "release": _GOOD_RELEASE, "dry_run": False,
+    })
+    assert resp.status_code == 400 and "gated" in resp.json()["error"]
 
 
 # -- bundles (M5) -----------------------------------------------------------
@@ -502,7 +611,7 @@ def mine_client(tmp_path):
     (checkout / "plugins").mkdir()
     settings = Settings(
         tesserae_url="http://tess.test", port=8770, workdir=wdir,
-        tesserae_path=checkout, tesserae_data_root=None, mcp_token=None,
+        tesserae_path=checkout, tesserae_data_root=None, mcp_token=None, catalog_path=None, catalog_repo='dmellok/tesserae-widgets',
     )
     c = _make_client(settings)
 
