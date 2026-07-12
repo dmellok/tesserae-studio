@@ -5,10 +5,6 @@ MCP-driven LLM loop that finishes at an open PR in the widget catalog. Studio is
 separate repo that connects to a running Tesserae for render fidelity and the widget
 registry.
 
-See `CLAUDE.md` for the widget contract and golden rules, `docs/build-spec.md` for the
-mission and milestones, `docs/architecture.md` for the resolved design, and
-`docs/plan-m0-m1.md` for the current plan.
-
 ## Status
 
 **M2 (in progress):** scaffold new widgets and duplicate existing ones into the workspace,
