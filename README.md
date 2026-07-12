@@ -23,8 +23,11 @@ tiers: **Interactive** (fast shadow-mount) and **Faithful** (the true e-ink PNG 
 Tesserae), toggled in the stage head, so interactive output is never mistaken for the panel
 render. **Mine schema** reverse-engineers a bindable `data_schema` (fields + sample) from the
 widget's live or sample data, reusing Tesserae's field-path grammar, and applies it to
-`plugin.json` so the widget is canvas-bindable. M2 is complete; next is the MCP/LLM authoring
-loop (M3).
+`plugin.json` so the widget is canvas-bindable. M2 is complete.
+
+**M3 (MCP authoring server):** the whole loop is exposed as an MCP server so an agent (Claude
+Code / Desktop, or any MCP client) is the author, Studio ships no LLM of its own. See
+[MCP authoring server](#mcp-authoring-server) below.
 
 **M1 (Editor):** a Monaco multi-file editor over a working directory, side by side with the
 live preview. Open a widget's `plugin.json` (validated live against Tesserae's
@@ -71,6 +74,29 @@ npm run dev   # http://localhost:5173
 
 Open http://localhost:5173. The connection indicator turns green when Studio can reach
 Tesserae. Pick a widget, a fragment, and a size to preview it.
+
+## MCP authoring server
+
+Studio exposes its authoring loop as an MCP server, so an agent drives the work: `list_widgets`,
+`scaffold_widget`, `read_file`/`write_file`, `lint_widget`, `mine_data_schema`,
+`register_widget`, `widget_data`, and `faithful_render` (which returns the e-ink PNG as an
+image). It is a thin client over the running Studio backend, so **start the server above
+first** (`uvicorn studio_server.app:app`), then point your MCP client at:
+
+```jsonc
+// Claude Desktop / Code: mcpServers config
+{
+  "tesserae-studio": {
+    "command": "python",
+    "args": ["-m", "studio_server.mcp_server"],
+    "env": { "STUDIO_URL": "http://localhost:8770" }
+  }
+}
+```
+
+Or, with the package installed (`pip install -e server`), run the console script
+`tesserae-studio-mcp`. From Claude Code:
+`claude mcp add tesserae-studio -e STUDIO_URL=http://localhost:8770 -- tesserae-studio-mcp`.
 
 ## Configuration
 
