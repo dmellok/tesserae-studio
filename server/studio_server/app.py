@@ -16,7 +16,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import SIZE_DIMENSIONS, Settings
 from .proxy import forward
+from .flatten import flatten_fields
 from .linter import lint_widget
+from .mine import MineError, apply_to_manifest, mine
 from .packager import package_widget
 from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
 from .source import TesseraeSource, catalog_entry
@@ -344,6 +346,81 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if schema is not None:
             return JSONResponse(schema)
         return JSONResponse({"error": "plugin.schema.json unavailable (no disk checkout)"}, 404)
+
+    # ---- mine_data_schema (canvas-bindable fields from real data) --------
+    async def _gather_fields(widget: str, manifest: dict, options: dict, source: str):
+        """Return (data, data_source, raw_fields, warnings). Live uses the
+        running Tesserae's flattener; sample flattens the manifest sample."""
+        import json as _json  # noqa: F401 (kept local, mirrors other handlers)
+
+        declared = manifest.get("data_schema") or {}
+        warnings: list[str] = []
+        if source in ("live", "auto"):
+            try:
+                res = await app.state.tesserae.widget_data(widget, options)
+                if res.get("data_source") == "error":
+                    raise RuntimeError(res.get("reason") or "widget fetch returned an error")
+                return res.get("data"), res.get("data_source"), res.get("fields") or [], warnings
+            except Exception as exc:  # noqa: BLE001
+                sample = declared.get("sample")
+                if source == "live" and not isinstance(sample, dict):
+                    raise MineError(
+                        f"live fetch failed and no manifest sample to fall back on: {exc}. "
+                        "Register the widget with Tesserae, or add a data_schema.sample."
+                    )
+                warnings.append(f"live data unavailable ({exc}); mined from the manifest sample.")
+        sample = declared.get("sample")
+        if not isinstance(sample, dict):
+            raise MineError(
+                "no data_schema.sample in the manifest. Register the widget and mine live, "
+                "or add a sample."
+            )
+        return sample, "sample", flatten_fields(sample), warnings
+
+    @app.post("/studio/api/mine/{widget}")
+    async def mine_endpoint(widget: str, spec: dict = Body(default={})) -> JSONResponse:
+        import json
+
+        ws = app.state.workspace
+        try:
+            manifest = json.loads(ws.read_file(widget, "plugin.json"))
+        except (WorkspaceError, json.JSONDecodeError) as exc:
+            return JSONResponse({"error": f"cannot read {widget}/plugin.json: {exc}"}, status_code=400)
+
+        source = spec.get("source") or "auto"
+        options = spec.get("options") or {}
+        max_fields = int(spec.get("max_fields") or 64)
+        apply = bool(spec.get("apply"))
+        try:
+            data, data_source, raw_fields, warnings = await _gather_fields(widget, manifest, options, source)
+        except MineError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+
+        result = mine(raw_fields, data, manifest.get("data_schema"), max_fields=max_fields)
+        result["warnings"] = warnings + result["warnings"]
+
+        applied = False
+        if apply:
+            merged = apply_to_manifest(manifest, result["data_schema"])
+            schema = _load_schema()
+            if schema is not None:
+                try:
+                    import jsonschema
+
+                    jsonschema.Draft202012Validator(schema).validate(merged)
+                except Exception as exc:  # noqa: BLE001
+                    return JSONResponse(
+                        {"error": f"mined schema would make plugin.json invalid: {exc}"},
+                        status_code=400,
+                    )
+            ws.write_file(widget, "plugin.json", json.dumps(merged, indent=2) + "\n")
+            applied = True
+
+        return JSONResponse({
+            "ok": True, "source": source, "data_source": data_source,
+            "fields": result["fields"], "data_schema": result["data_schema"],
+            "diff": result["diff"], "applied": applied, "warnings": result["warnings"],
+        })
 
     # ---- Widget linter (the Golden Rules) --------------------------------
     @app.get("/studio/api/lint/{widget}")

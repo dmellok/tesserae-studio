@@ -83,6 +83,35 @@ export interface LintFinding {
   line: number | null;
 }
 
+export interface MineField {
+  name: string;
+  type: "num" | "str" | "arr";
+  label: string;
+  unit?: string;
+  format?: string;
+  display: string;
+  chartable: boolean;
+  sample: unknown;
+}
+
+export interface MineResult {
+  ok: boolean;
+  source: string;
+  data_source: "live" | "sample" | "error";
+  fields: MineField[];
+  data_schema: { fields: unknown[]; sample: unknown };
+  diff: { added: string[]; removed: string[]; changed: string[] };
+  applied: boolean;
+  warnings: string[];
+}
+
+export const mineSchema = (widget: string, opts: { source?: string; apply?: boolean } = {}) =>
+  getJson<MineResult>(`/studio/api/mine/${encodeURIComponent(widget)}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(opts),
+  });
+
 export const lintWidget = (widget: string) =>
   getJson<{ widget: string; findings: LintFinding[]; errors: number; warnings: number }>(
     `/studio/api/lint/${encodeURIComponent(widget)}`,

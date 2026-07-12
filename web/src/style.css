@@ -114,6 +114,37 @@
 .pane-head .btn { margin-left: var(--t-space-2); }
 /* neutral "Register to Tesserae" pill uses the accent so it reads as an action */
 .pill.register:not(.ok):not(.warn) { color: var(--t-accent-ink); background: var(--t-accent-soft); border-color: var(--t-accent-tint); }
+.pill.mine { cursor: pointer; color: var(--t-fg-soft); }
+.pill.mine:hover:not(:disabled) { color: var(--t-fg); background: var(--t-surface-sunk); }
+
+/* -- mine schema panel ------------------------------------------------- */
+.mine-panel {
+  flex: none; max-height: 34%; overflow: auto;
+  border-top: 1px solid var(--t-border); background: var(--t-surface-sunk);
+  font-size: var(--t-size-sm);
+}
+.mine-head {
+  display: flex; align-items: center; gap: var(--t-space-3);
+  padding: 8px var(--t-space-4); border-bottom: 1px solid var(--t-border);
+  position: sticky; top: 0; background: var(--t-surface-sunk);
+}
+.mine-head .btn { margin-left: auto; }
+.mine-head #mine-close { cursor: pointer; }
+.mine-diff { font-family: var(--t-font-mono); color: var(--t-accent-ink); }
+.mine-row {
+  display: flex; align-items: baseline; gap: var(--t-space-3);
+  padding: 5px var(--t-space-4); border-bottom: 1px solid var(--t-border);
+}
+.mine-name { flex: 1; color: var(--t-fg); }
+.mine-type {
+  font-family: var(--t-font-mono); font-size: var(--t-size-xs); font-weight: 600;
+  padding: 1px 7px; border-radius: var(--t-radius-pill);
+  background: var(--t-pill-neutral-bg); color: var(--t-pill-neutral-fg);
+}
+.mine-type.t-num { background: var(--t-pill-ok-bg); color: var(--t-pill-ok-fg); }
+.mine-type.t-arr { background: var(--t-accent-soft); color: var(--t-accent-ink); }
+.mine-disp { color: var(--t-muted); font-size: var(--t-size-xs); min-width: 72px; text-align: right; }
+.mine-warn { padding: 5px var(--t-space-4); color: var(--t-warn); border-bottom: 1px solid var(--t-border); }
 
 .editor-wrap { flex: 1; min-height: 0; position: relative; }
 .monaco { position: absolute; inset: 0; }

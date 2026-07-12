@@ -7,13 +7,14 @@ import {
   getPluginSchema,
   getWidgetData,
   lintWidget,
+  mineSchema,
   readFile,
   registerWidget,
   scaffoldWidget,
   unregisterWidget,
   writeFile,
 } from "./api";
-import type { LintFinding } from "./api";
+import type { LintFinding, MineResult } from "./api";
 import { mountWidget } from "./mount";
 import { WidgetEditor, type OpenFile } from "./editor";
 import type { Config, FileEntry, Fragment, Widget } from "./types";
@@ -108,6 +109,7 @@ app.innerHTML = `
         <span class="pane-title" id="editor-widget">—</span>
         <span class="pane-sub" id="editor-sub"></span>
         <button class="pill register" id="register-btn" hidden><span class="dot"></span><span id="register-text"></span></button>
+        <button class="pill mine" id="mine-btn" hidden><i class="ph-bold ph-magic-wand"></i> Mine schema</button>
         <button class="pill" id="lint-pill" hidden><span class="dot"></span><span id="lint-text"></span></button>
         <button class="btn" id="save" disabled>Save <kbd>⌘S</kbd></button>
       </div>
@@ -116,6 +118,7 @@ app.innerHTML = `
         <div class="monaco" id="monaco"></div>
         <div class="editor-empty" id="editor-empty" hidden></div>
       </div>
+      <div class="mine-panel" id="mine-panel" hidden></div>
       <div class="lint-panel" id="lint-panel" hidden></div>
     </section>
     <section class="preview-pane">
@@ -154,6 +157,9 @@ lintPill.addEventListener("click", () => {
 const registerBtn = $<HTMLButtonElement>("register-btn");
 const registerText = $<HTMLSpanElement>("register-text");
 registerBtn.addEventListener("click", () => void toggleRegister());
+const mineBtn = $<HTMLButtonElement>("mine-btn");
+const minePanel = $<HTMLDivElement>("mine-panel");
+mineBtn.addEventListener("click", () => void runMine());
 
 const editor = new WidgetEditor($<HTMLDivElement>("monaco"));
 editor.onDirtyChange(() => {
@@ -387,6 +393,73 @@ async function toggleRegister() {
   }
 }
 
+// -- mine_data_schema ------------------------------------------------------
+async function runMine() {
+  const w = state.widget;
+  if (!w?.editable) return;
+  mineBtn.disabled = true;
+  mineBtn.textContent = "Mining…";
+  try {
+    const res = await mineSchema(w.key, { source: "auto" });
+    renderMinePanel(res);
+  } catch (err) {
+    setNote(`Mine failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+  } finally {
+    mineBtn.disabled = false;
+    mineBtn.innerHTML = '<i class="ph-bold ph-magic-wand"></i> Mine schema';
+  }
+}
+
+function renderMinePanel(res: MineResult) {
+  const d = res.diff;
+  const diffBits = [
+    d.added.length ? `+${d.added.length}` : "",
+    d.changed.length ? `~${d.changed.length}` : "",
+    d.removed.length ? `-${d.removed.length}` : "",
+  ].filter(Boolean).join(" ");
+  const rows = res.fields
+    .map(
+      (f) =>
+        `<div class="mine-row">
+           <code class="mine-name">${escapeHtml(f.name)}</code>
+           <span class="mine-type t-${f.type}">${f.type}${f.unit ? " " + escapeHtml(f.unit) : ""}</span>
+           <span class="mine-disp">${f.chartable ? "chartable" : f.display}</span>
+         </div>`,
+    )
+    .join("");
+  const warns = res.warnings.map((w) => `<div class="mine-warn">${escapeHtml(w)}</div>`).join("");
+  minePanel.innerHTML = `
+    <div class="mine-head">
+      <span>Mined <b>${res.fields.length}</b> fields from <b>${res.data_source}</b> data${diffBits ? ` · <span class="mine-diff">${diffBits}</span> vs declared` : ""}</span>
+      <button class="btn" id="mine-apply">Apply to plugin.json</button>
+      <button class="pill" id="mine-close">Dismiss</button>
+    </div>
+    ${rows}${warns}`;
+  minePanel.hidden = false;
+  minePanel.querySelector("#mine-apply")?.addEventListener("click", () => void applyMine());
+  minePanel.querySelector("#mine-close")?.addEventListener("click", () => {
+    minePanel.hidden = true;
+  });
+}
+
+async function applyMine() {
+  const w = state.widget;
+  if (!w?.editable) return;
+  try {
+    const res = await mineSchema(w.key, { source: "auto", apply: true });
+    // Refresh plugin.json in the editor without losing edits to other files.
+    const content = (await readFile(w.key, "plugin.json")).content;
+    editor.setValue("plugin.json", content);
+    editor.markSaved("plugin.json");
+    renderTabs();
+    await runLint(w);
+    minePanel.hidden = true;
+    setNote(`Applied data_schema (${res.fields.length} fields) to plugin.json.`, "");
+  } catch (err) {
+    setNote(`Apply failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+  }
+}
+
 // -- lint ------------------------------------------------------------------
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -484,6 +557,8 @@ async function loadEditor(widget: Widget) {
     $<HTMLSpanElement>("editor-sub").textContent = "read-only";
     void runLint(widget); // hides the pill for read-only widgets
     registerBtn.hidden = true;
+    mineBtn.hidden = true;
+    minePanel.hidden = true;
     return;
   }
   emptyEl.hidden = true;
@@ -513,6 +588,8 @@ async function loadEditor(widget: Widget) {
   saveBtn.disabled = true;
   void runLint(widget);
   renderRegister(widget);
+  mineBtn.hidden = false;
+  minePanel.hidden = true;
 }
 
 async function save() {

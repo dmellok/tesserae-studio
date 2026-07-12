@@ -432,6 +432,76 @@ def test_push_error_surfaced(push_client):
     assert r.status_code == 409 and "bundled" in r.json()["error"]
 
 
+# -- mine_data_schema -------------------------------------------------------
+@pytest.fixture
+def mine_client(tmp_path):
+    """A workspace widget whose live data endpoint returns a flattened payload."""
+    wdir = tmp_path / "work"
+    widget = wdir / "wx"
+    widget.mkdir(parents=True)
+    widget.joinpath("client.js").write_text("export default () => {}")
+    widget.joinpath("plugin.json").write_text(json.dumps({
+        "tesserae_compat": "1.x", "name": "Wx", "version": "0.1.0", "kind": "widget",
+        "supports": {"sizes": ["md"]},
+    }))
+    # A tesserae checkout so the schema endpoint can validate on apply.
+    checkout = tmp_path / "tess"
+    (checkout / "schema").mkdir(parents=True)
+    (checkout / "schema" / "plugin.schema.json").write_text(json.dumps({
+        "type": "object", "required": ["name", "kind"],
+        "properties": {"data_schema": {"type": "object"}},
+    }))
+    (checkout / "plugins").mkdir()
+    settings = Settings(
+        tesserae_url="http://tess.test", port=8770, workdir=wdir,
+        tesserae_path=checkout, tesserae_data_root=None, mcp_token=None,
+    )
+    c = _make_client(settings)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/healthz":
+            return httpx.Response(200, text="ok")
+        if request.url.path == "/api/mcp/widgets/wx/data":
+            return httpx.Response(200, json={
+                "key": "wx", "data": {"temp": 19, "humidity": 58}, "data_source": "live",
+                "fields": [{"path": "temp", "type": "int", "sample": 19},
+                           {"path": "humidity", "type": "int", "sample": 58}],
+            })
+        return httpx.Response(404, json={"error": "x"})
+
+    c.app.state.tesserae.raw._transport = httpx.MockTransport(handler)
+    yield c
+
+
+def test_mine_returns_fields_and_diff(mine_client):
+    r = mine_client.post("/studio/api/mine/wx", json={"source": "live"}).json()
+    assert r["ok"] and r["data_source"] == "live" and r["applied"] is False
+    by = {f["name"]: f for f in r["fields"]}
+    assert by["temp"]["type"] == "num" and by["humidity"]["unit"] == "%"
+    assert set(r["diff"]["added"]) == {"temp", "humidity"}  # nothing declared yet
+
+
+def test_mine_apply_writes_manifest(mine_client):
+    r = mine_client.post("/studio/api/mine/wx", json={"source": "live", "apply": True}).json()
+    assert r["applied"] is True
+    manifest = json.loads(mine_client.get("/studio/api/files/wx/plugin.json").json()["content"])
+    names = [f["name"] for f in manifest["data_schema"]["fields"]]
+    assert names == ["humidity", "temp"]  # sorted by path, minimal shape
+    assert manifest["data_schema"]["sample"] == {"temp": 19, "humidity": 58}
+
+
+def test_mine_never_writes_from_error(mine_client):
+    # No live data endpoint match + no manifest sample -> error, nothing written.
+    mine_client.app.state.tesserae.raw._transport = httpx.MockTransport(
+        lambda req: httpx.Response(200, text="ok") if req.url.path == "/healthz"
+        else httpx.Response(200, json={"data": {"error": "boom"}, "data_source": "error", "fields": []})
+    )
+    r = mine_client.post("/studio/api/mine/wx", json={"source": "auto"})
+    assert r.status_code == 400
+    manifest = json.loads(mine_client.get("/studio/api/files/wx/plugin.json").json()["content"])
+    assert "data_schema" not in manifest
+
+
 # -- unit -------------------------------------------------------------------
 def test_config_exposes_sizes(live_client):
     body = live_client.get("/studio/api/config").json()

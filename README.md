@@ -25,7 +25,10 @@ Assistant add-on. Either way the widget's `server.py` then serves **live `fetch(
 the preview (a source chip shows live vs sample vs empty). The preview has two explicit
 tiers: **Interactive** (fast shadow-mount) and **Faithful** (the true e-ink PNG rendered by
 Tesserae), toggled in the stage head, so interactive output is never mistaken for the panel
-render. Still to come in M2: `mine_data_schema`.
+render. **Mine schema** reverse-engineers a bindable `data_schema` (fields + sample) from the
+widget's live or sample data, reusing Tesserae's field-path grammar, and applies it to
+`plugin.json` so the widget is canvas-bindable. M2 is complete; next is the MCP/LLM authoring
+loop (M3).
 
 **M1 (Editor):** a Monaco multi-file editor over a working directory, side by side with the
 live preview. Open a widget's `plugin.json` (validated live against Tesserae's
