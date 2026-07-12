@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import SIZE_DIMENSIONS, Settings
 from .proxy import forward
+from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
 from .source import TesseraeSource, catalog_entry
 from .tesserae import TesseraeClient
 from .workspace import Workspace, WorkspaceError
@@ -126,6 +127,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except WorkspaceError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         return JSONResponse({"ok": True, **result})
+
+    # ---- Scaffold a new widget / duplicate an existing one ---------------
+    @app.post("/studio/api/scaffold")
+    async def scaffold(spec: dict = Body(...)) -> JSONResponse:
+        name = str(spec.get("name") or "").strip()
+        if not name:
+            return JSONResponse({"error": "name is required"}, status_code=400)
+        try:
+            key, files = scaffold_files(
+                name,
+                archetype=str(spec.get("archetype") or "stat"),
+                fragments=spec.get("fragments") or None,
+                with_server=bool(spec.get("server")),
+            )
+            result = app.state.workspace.create_widget(key, files)
+        except (ScaffoldError, WorkspaceError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, **result})
+
+    @app.post("/studio/api/duplicate")
+    async def duplicate(spec: dict = Body(...)) -> JSONResponse:
+        source = str(spec.get("source") or "").strip()
+        if not source:
+            return JSONResponse({"error": "source is required"}, status_code=400)
+        # Resolve the source folder: a workspace widget, else the disk checkout.
+        ws = app.state.workspace
+        src_dir = ws.root / source
+        if not (src_dir / "plugin.json").is_file():
+            tpath = settings.tesserae_path
+            src_dir = (tpath / "plugins" / source) if tpath else src_dir
+        if not (src_dir / "plugin.json").is_file():
+            return JSONResponse(
+                {"error": f"cannot duplicate '{source}': needs a disk checkout or a workspace copy"},
+                status_code=400,
+            )
+        try:
+            key = slugify(str(spec.get("name") or f"{source}_copy"))
+            dest = ws.new_widget_dir(key)
+            written = copy_widget(src_dir, dest)
+        except (ScaffoldError, WorkspaceError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"ok": True, "key": key, "files": written})
 
     # ---- Manifest schema for Monaco JSON validation ----------------------
     @app.get("/studio/api/schema/plugin")

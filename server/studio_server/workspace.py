@@ -33,6 +33,33 @@ class Workspace:
     def ensure(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
 
+    # -- creation ----------------------------------------------------------
+    def _validate_key(self, key: str) -> Path:
+        """A fresh widget dir directly under root, guaranteed not to exist."""
+        target = (self.root / key).resolve()
+        if target.parent != self.root.resolve():
+            raise WorkspaceError(f"invalid widget id: {key}")
+        if target.exists():
+            raise WorkspaceError(f"widget already exists: {key}")
+        return target
+
+    def new_widget_dir(self, key: str) -> Path:
+        """Reserve (validate, don't create) a dir for a new widget, e.g. for a
+        recursive copy on duplicate."""
+        self.ensure()
+        return self._validate_key(key)
+
+    def create_widget(self, key: str, files: dict[str, str]) -> dict[str, Any]:
+        """Write a brand-new widget from generated file contents."""
+        wdir = self.new_widget_dir(key)
+        for rel, content in files.items():
+            target = (wdir / rel).resolve()
+            if wdir.resolve() not in target.parents:
+                raise WorkspaceError(f"path escapes widget: {rel}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content)
+        return {"key": key, "files": sorted(files)}
+
     # -- resolution --------------------------------------------------------
     def _widget_dir(self, widget: str) -> Path:
         target = (self.root / widget).resolve()

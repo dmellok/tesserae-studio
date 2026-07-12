@@ -1,4 +1,5 @@
 import {
+  duplicateWidget,
   getCatalog,
   getConfig,
   getFiles,
@@ -6,6 +7,7 @@ import {
   getPluginSchema,
   getWidgetData,
   readFile,
+  scaffoldWidget,
   writeFile,
 } from "./api";
 import { mountWidget } from "./mount";
@@ -66,7 +68,30 @@ app.innerHTML = `
     </div>
     <div class="field dim"><label for="w">Width</label><input id="w" type="number" min="20" max="2000" value="640" /></div>
     <div class="field dim"><label for="h">Height</label><input id="h" type="number" min="20" max="2000" value="400" /></div>
+    <button class="btn ghost" id="new-widget"><i class="ph-bold ph-plus"></i> New widget</button>
   </div>
+  <dialog id="new-dialog" class="dialog">
+    <form method="dialog" id="new-form">
+      <h2>New widget</h2>
+      <div class="field"><label for="nw-name">Name</label>
+        <input id="nw-name" type="text" placeholder="e.g. Air Quality" required /></div>
+      <div class="field"><label for="nw-arche">Archetype</label>
+        <select id="nw-arche">
+          <option value="stat">Stat</option>
+          <option value="list">List</option>
+          <option value="chart">Chart</option>
+          <option value="status">Status</option>
+          <option value="weather">Weather</option>
+          <option value="calendar">Calendar</option>
+          <option value="image">Image</option>
+        </select></div>
+      <label class="check"><input id="nw-server" type="checkbox" /> Include server.py</label>
+      <div class="dialog-actions">
+        <button type="button" class="btn ghost" id="nw-cancel">Cancel</button>
+        <button type="submit" class="btn" id="nw-create">Create</button>
+      </div>
+    </form>
+  </dialog>
   <div class="workbench">
     <section class="editor-pane">
       <div class="pane-head">
@@ -230,7 +255,12 @@ async function loadEditor(widget: Widget) {
     tabsEl.innerHTML = "";
     saveBtn.disabled = true;
     emptyEl.hidden = false;
-    emptyEl.textContent = `${widget.name} is a read-only reference widget (not in your workspace). Previewing only.`;
+    emptyEl.innerHTML = `
+      <div>
+        <p>${widget.name} is a read-only reference widget (not in your workspace).</p>
+        <button class="btn" id="dup-btn"><i class="ph-bold ph-copy"></i> Duplicate to workspace</button>
+      </div>`;
+    emptyEl.querySelector("#dup-btn")?.addEventListener("click", () => void duplicate(widget));
     $<HTMLSpanElement>("editor-widget").textContent = widget.name;
     $<HTMLSpanElement>("editor-sub").textContent = "read-only";
     return;
@@ -321,6 +351,44 @@ async function refreshCatalog(keepKey?: string) {
     state.widget = state.widgets.find((w) => w.key === key);
     widgetSel.value = key;
     populateFragments();
+  }
+}
+
+// -- scaffold + duplicate --------------------------------------------------
+const newDialog = $<HTMLDialogElement>("new-dialog");
+$<HTMLButtonElement>("new-widget").addEventListener("click", () => newDialog.showModal());
+$<HTMLButtonElement>("nw-cancel").addEventListener("click", () => newDialog.close());
+$<HTMLFormElement>("new-form").addEventListener("submit", () => {
+  // method="dialog" closes the dialog; create after it closes.
+  const name = $<HTMLInputElement>("nw-name").value.trim();
+  if (!name) return;
+  const archetype = $<HTMLSelectElement>("nw-arche").value;
+  const server = $<HTMLInputElement>("nw-server").checked;
+  void createWidget({ name, archetype, server });
+});
+
+async function createWidget(spec: { name: string; archetype: string; server: boolean }) {
+  try {
+    const res = await scaffoldWidget(spec);
+    await refreshCatalog(res.key);
+    await selectWidget(res.key);
+    $<HTMLInputElement>("nw-name").value = "";
+    setNote(`Created ${res.key} (${res.files.length} files). Edit and save to preview.`, "");
+  } catch (err) {
+    setNote(`Scaffold failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+  }
+}
+
+async function duplicate(widget: Widget) {
+  const name = window.prompt(`Duplicate "${widget.name}" into your workspace as:`, `${widget.name} copy`);
+  if (!name) return;
+  try {
+    const res = await duplicateWidget(widget.key, name);
+    await refreshCatalog(res.key);
+    await selectWidget(res.key);
+    setNote(`Duplicated ${widget.key} → ${res.key}. Now editable.`, "");
+  } catch (err) {
+    setNote(`Duplicate failed: ${err instanceof Error ? err.message : String(err)}`, "err");
   }
 }
 

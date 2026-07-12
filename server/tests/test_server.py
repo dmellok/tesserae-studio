@@ -217,6 +217,54 @@ def test_workspace_guard_rejects_escape(tmp_path):
         ws.read_file("../..", "etc/passwd")
 
 
+# -- scaffold + duplicate (M2) ---------------------------------------------
+def test_scaffold_creates_editable_widget(ws_client):
+    r = ws_client.post("/studio/api/scaffold", json={"name": "My Cool Widget"}).json()
+    assert r["ok"] and r["key"] == "my_cool_widget"
+    assert "plugin.json" in r["files"] and "client.js" in r["files"]
+    # It shows up in the catalog as editable, and its client.js serves from disk.
+    widgets = ws_client.get("/studio/api/catalog").json()["widgets"]
+    assert any(w["key"] == "my_cool_widget" and w["editable"] for w in widgets)
+    assert ws_client.get("/plugins/my_cool_widget/client.js").status_code == 200
+
+
+def test_scaffold_manifest_is_fragment_first(ws_client):
+    ws_client.post("/studio/api/scaffold", json={"name": "Frag Demo", "archetype": "stat"})
+    manifest = json.loads(ws_client.get("/studio/api/files/frag_demo/plugin.json").json()["content"])
+    assert manifest["kind"] == "widget"
+    assert manifest["supports"]["sizes"] == ["xs", "sm", "md", "lg"]
+    frag_ids = [f["id"] for f in manifest["fragments"]]
+    assert "value" in frag_ids and "label" in frag_ids  # stat defaults
+
+
+def test_scaffold_client_js_is_lint_clean(ws_client):
+    ws_client.post("/studio/api/scaffold", json={"name": "Lint Me", "server": True})
+    js = ws_client.get("/studio/api/files/lint_me/client.js").json()["content"]
+    assert "export default function" in js
+    assert "ctx.cell.fragment" in js
+    assert "shadow.innerHTML" in js
+    assert "fetch(" not in js  # no client-side network
+    assert "@media" not in js  # container queries only
+    assert "@keyframes" not in js and "transition:" not in js  # no animation
+    import re as _re
+
+    assert not _re.search(r"#[0-9a-fA-F]{3,6}\b", js)  # no hard-coded hex
+
+
+def test_scaffold_rejects_duplicate_name(ws_client):
+    ws_client.post("/studio/api/scaffold", json={"name": "Dup"})
+    again = ws_client.post("/studio/api/scaffold", json={"name": "Dup"})
+    assert again.status_code == 400
+
+
+def test_duplicate_widget_into_workspace(ws_client):
+    # 'mywidget' is seeded by the ws_client fixture.
+    r = ws_client.post("/studio/api/duplicate", json={"source": "mywidget", "name": "My Fork"})
+    assert r.status_code == 200 and r.json()["key"] == "my_fork"
+    files = ws_client.get("/studio/api/files/my_fork").json()["files"]
+    assert {"client.js", "plugin.json"} <= {f["path"] for f in files}
+
+
 # -- unit -------------------------------------------------------------------
 def test_config_exposes_sizes(live_client):
     body = live_client.get("/studio/api/config").json()

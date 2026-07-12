@@ -32,6 +32,27 @@ export const writeFile = (widget: string, path: string, content: string) =>
     { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ content }) },
   );
 
+export interface ScaffoldSpec {
+  name: string;
+  archetype?: string;
+  server?: boolean;
+  fragments?: Array<{ id: string; label?: string }>;
+}
+
+export const scaffoldWidget = (spec: ScaffoldSpec) =>
+  getJson<{ ok: boolean; key: string; files: string[] }>("/studio/api/scaffold", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(spec),
+  });
+
+export const duplicateWidget = (source: string, name?: string) =>
+  getJson<{ ok: boolean; key: string; files: string[] }>("/studio/api/duplicate", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ source, name }),
+  });
+
 // The manifest JSON schema for live plugin.json validation. Null when no disk
 // checkout is available.
 export const getPluginSchema = async (): Promise<object | null> => {

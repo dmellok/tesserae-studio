@@ -83,6 +83,9 @@
 }
 .btn:hover:not(:disabled) { background: var(--t-accent-hover); border-color: var(--t-accent-hover); }
 .btn:disabled { opacity: 0.45; cursor: default; }
+.btn.ghost { background: var(--t-surface); color: var(--t-fg-soft); border-color: var(--t-border-strong); }
+.btn.ghost:hover:not(:disabled) { background: var(--t-surface-sunk); color: var(--t-fg); border-color: var(--t-border-strong); }
+.toolbar .btn.ghost { align-self: center; margin-left: auto; }
 .btn kbd {
   font-family: var(--t-font-mono); font-size: 10px;
   padding: 1px 4px; border-radius: 4px;
@@ -138,6 +141,19 @@
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
 .cell { background: var(--t-surface); border-radius: var(--t-radius-sm); box-shadow: var(--t-shadow-sm), var(--t-shadow-inset); overflow: hidden; }
+
+/* -- new-widget dialog -------------------------------------------------- */
+.dialog {
+  border: 1px solid var(--t-border); border-radius: var(--t-radius-lg);
+  padding: 0; box-shadow: var(--t-shadow-xl); background: var(--t-surface);
+  color: var(--t-fg); width: min(420px, 92vw);
+}
+.dialog::backdrop { background: rgba(16, 12, 8, 0.32); backdrop-filter: blur(2px); }
+.dialog form { display: flex; flex-direction: column; gap: var(--t-space-4); padding: var(--t-space-5); }
+.dialog h2 { margin: 0; font-size: var(--t-size-lg); }
+.dialog .field { margin: 0; }
+.dialog .check { display: flex; align-items: center; gap: 8px; font-size: var(--t-size-md); color: var(--t-fg-soft); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--t-space-2); margin-top: var(--t-space-2); }
 
 .note { margin: var(--t-space-4) 0 0; font-size: var(--t-size-md); color: var(--t-muted); min-height: 1.2em; }
 .note.warn { color: var(--t-warn); }
