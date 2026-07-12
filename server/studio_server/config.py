@@ -40,6 +40,30 @@ def _ha_options() -> dict:
         return {}
 
 
+def ha_options_debug() -> dict:
+    """Diagnostic view of the HA add-on options file, safe to surface (key names
+    only, never values). Answers 'is the file there, readable, and does it have
+    tesserae_url?' without needing a shell in the container."""
+    import json
+
+    path = os.environ.get("STUDIO_HA_OPTIONS", "/data/options.json")
+    info: dict = {"path": path, "exists": os.path.exists(path)}
+    try:
+        info["uid"] = os.getuid()
+    except AttributeError:  # pragma: no cover - non-POSIX
+        info["uid"] = None
+    if info["exists"]:
+        try:
+            with open(path) as fh:
+                data = json.load(fh)
+            info["readable"] = True
+            info["keys"] = sorted(data) if isinstance(data, dict) else []
+        except Exception as exc:  # noqa: BLE001 - report why it failed
+            info["readable"] = False
+            info["error"] = type(exc).__name__
+    return info
+
+
 def _autodetect_tesserae_path() -> Path | None:
     """Best-effort sibling ``tesserae`` checkout next to this repo, so Studio
     runs standalone (disk assets + disk catalog) out of the box with no running

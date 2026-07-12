@@ -1,15 +1,34 @@
 #!/bin/sh
 # Tesserae Studio container entrypoint.
 #
-# Starts as root only long enough to fix ownership of the persistent data
-# volume (the #1 Docker bind-mount gotcha: a host ./data created by uid 1000
-# vs the container's studio uid 1001), then re-execs the process unprivileged
-# under gosu. Idempotent on subsequent boots.
+# Starts as root only long enough to (1) fix ownership of the persistent data
+# volume and (2) read the Home Assistant add-on options, then re-execs the
+# process unprivileged under gosu. Idempotent on subsequent boots.
 set -e
 
-# Seed and own the authored-widget workspace so writes succeed. STUDIO_WORKDIR
-# defaults into the data volume when the operator points it there (compose / HA).
 : "${STUDIO_WORKDIR:=}"
+
+# Home Assistant writes the add-on's options to /data/options.json. Read them
+# here as root (the app runs as the unprivileged `studio` user, which may not be
+# able to read that file) and export them as env so Settings.from_env picks them
+# up. Only sets values the operator hasn't already provided via real env vars.
+if [ -f /data/options.json ] && command -v python3 >/dev/null 2>&1; then
+    eval "$(python3 - <<'PY'
+import json, shlex
+try:
+    o = json.load(open("/data/options.json"))
+except Exception:
+    o = {}
+import os
+def emit(env, key):
+    v = o.get(key)
+    if isinstance(v, str) and v and not os.environ.get(env):
+        print(f"export {env}={shlex.quote(v)}")
+emit("STUDIO_TESSERAE_URL", "tesserae_url")
+emit("STUDIO_TESSERAE_MCP_TOKEN", "mcp_token")
+PY
+)"
+fi
 
 if [ "$(id -u)" = "0" ]; then
     chown studio:studio /app/data 2>/dev/null || true

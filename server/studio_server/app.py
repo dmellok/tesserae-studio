@@ -14,7 +14,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .config import SIZE_DIMENSIONS, Settings
+from .config import SIZE_DIMENSIONS, Settings, ha_options_debug
 from .flatten import flatten_fields
 from .linter import lint_widget
 from .mine import MineError, apply_to_manifest, mine
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.3.3", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.3.4", lifespan=lifespan)
     app.state.settings = settings
 
     # ---- Studio's own API -------------------------------------------------
@@ -77,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(
             {
                 "studio": "ok",
+                "version": app.version,
                 "tesserae": "ok" if status["live"] else "unreachable",
                 # "off" = up but the mcp experiment is disabled.
                 "mcp": "ok" if status["mcp"] else ("off" if status["live"] else "unreachable"),
@@ -101,6 +102,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "mcp_token_set": bool(settings.mcp_token),
                 # How a workspace widget registers with this Tesserae right now.
                 "registration": await _registration_method(),
+                # Diagnostic: did the HA add-on options file get read? (key names only)
+                "ha_options": ha_options_debug(),
                 "sizes": {k: {"w": w, "h": h} for k, (w, h) in SIZE_DIMENSIONS.items()},
             }
         )
