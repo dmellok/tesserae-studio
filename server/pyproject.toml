@@ -1,6 +1,6 @@
 [project]
 name = "tesserae-studio-server"
-version = "0.3.4"
+version = "0.3.5"
 description = "Thin local server for tesserae-studio: reverse-proxies a running Tesserae and hosts Studio's own API."
 requires-python = ">=3.11"
 license = "AGPL-3.0-or-later"

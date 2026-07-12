@@ -62,14 +62,14 @@ class TesseraeClient:
         ``TESSERAE_EXPERIMENT_MCP=1``), so this is Studio's signal that the
         widget catalog and preview data are actually reachable."""
         try:
-            resp = await self._client.get("/api/mcp/catalog")
+            resp = await self._client.get("/api/mcp/catalog", headers=self._mcp_headers())
             return resp.status_code == 200
         except httpx.HTTPError:
             return False
 
     async def catalog(self) -> dict[str, Any]:
         """Installed widgets (with fragments) + appearance options."""
-        resp = await self._client.get("/api/mcp/catalog")
+        resp = await self._client.get("/api/mcp/catalog", headers=self._mcp_headers())
         resp.raise_for_status()
         return resp.json()
 
@@ -156,6 +156,7 @@ class TesseraeClient:
         resp = await self._client.post(
             f"/api/mcp/widgets/{widget_id}/data",
             json={"options": options or {}},
+            headers=self._mcp_headers(),
         )
         resp.raise_for_status()
         return resp.json()
