@@ -149,6 +149,38 @@
 .editor-wrap { flex: 1; min-height: 0; position: relative; }
 .monaco { position: absolute; inset: 0; }
 
+/* -- Code | Design toggle ---------------------------------------------- */
+.mode-toggle { display: inline-flex; padding: 2px; gap: 2px; background: var(--t-surface-sunk); border: 1px solid var(--t-border); border-radius: var(--t-radius-pill); }
+.mode-btn { font: inherit; font-size: var(--t-size-xs); font-weight: 600; padding: 3px 11px; border: none; background: transparent; color: var(--t-muted); border-radius: var(--t-radius-pill); cursor: pointer; }
+.mode-btn.active { background: var(--t-accent); color: var(--t-accent-fg); }
+
+/* -- design surface ---------------------------------------------------- */
+.design-surface { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--t-surface); overflow: hidden; }
+.d-frags { flex: none; display: flex; gap: 2px; padding: 6px var(--t-space-3); border-bottom: 1px solid var(--t-border); overflow-x: auto; }
+.d-frag { font: inherit; font-family: var(--t-font-mono); font-size: var(--t-size-xs); padding: 4px 10px; border: 1px solid var(--t-border); background: var(--t-surface); color: var(--t-muted); border-radius: var(--t-radius-sm); cursor: pointer; white-space: nowrap; }
+.d-frag.active { border-color: var(--t-accent); color: var(--t-accent-ink); background: var(--t-accent-soft); }
+.d-palette { flex: none; display: flex; align-items: center; gap: 6px; padding: 6px var(--t-space-3); border-bottom: 1px solid var(--t-border); flex-wrap: wrap; }
+.d-plabel { font-size: var(--t-size-xs); color: var(--t-muted); }
+.d-add { font: inherit; font-size: var(--t-size-xs); display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border: 1px solid var(--t-border-strong); background: var(--t-surface); color: var(--t-fg-soft); border-radius: var(--t-radius-sm); cursor: pointer; }
+.d-add:hover { background: var(--t-surface-sunk); color: var(--t-fg); }
+.d-body { flex: 1; min-height: 0; display: flex; }
+.d-outline { flex: 1 1 46%; min-width: 0; overflow: auto; border-right: 1px solid var(--t-border); padding: 4px 0; }
+.d-node { display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: var(--t-size-sm); cursor: pointer; }
+.d-node:hover { background: var(--t-surface-sunk); }
+.d-node.sel { background: var(--t-accent-soft); }
+.d-node i { color: var(--t-muted); }
+.d-nlabel { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.d-nctrls { display: flex; gap: 1px; opacity: 0; }
+.d-node:hover .d-nctrls, .d-node.sel .d-nctrls { opacity: 1; }
+.d-nbtn { font: inherit; font-size: 11px; width: 18px; height: 18px; line-height: 1; border: none; background: transparent; color: var(--t-muted); cursor: pointer; border-radius: 4px; }
+.d-nbtn:hover { background: var(--t-surface); color: var(--t-fg); }
+.d-props { flex: 1 1 54%; min-width: 0; overflow: auto; padding: var(--t-space-3); display: flex; flex-direction: column; gap: 8px; }
+.d-ptitle { font-weight: 600; font-size: var(--t-size-sm); margin-bottom: 2px; }
+.d-hint { color: var(--t-muted); font-size: var(--t-size-sm); }
+.d-field { display: grid; grid-template-columns: 78px 1fr; align-items: center; gap: 8px; }
+.d-flabel { font-size: var(--t-size-xs); color: var(--t-muted); }
+.d-field select, .d-field input[type="text"], .d-field input[type="number"] { font: inherit; font-size: var(--t-size-sm); padding: 4px 6px; border: 1px solid var(--t-border); border-radius: 6px; background: #fff; color: var(--t-fg); width: 100%; }
+
 /* -- lint panel --------------------------------------------------------- */
 .lint-panel {
   flex: none; max-height: 30%; overflow: auto;
