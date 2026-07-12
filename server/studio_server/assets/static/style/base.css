@@ -1,0 +1,521 @@
+/*
+ * Tesserae admin design system.
+ *
+ * Tokens first, colours, spacing, radius, shadow, typography. Swap
+ * --t-accent to retint the whole admin (nav, buttons, focus ring,
+ * brand mark, slider thumb, switch on-state, link hover).
+ *
+ * Neutrals follow a zinc-ish 50→900 scale, lightly warm-tinted so the
+ * surface layers read as paper-warm rather than clinical grey. The
+ * Phosphor icon font is loaded by _base.html, every <i class="ph
+ * ph-xxx"> tag inside the admin shell picks up the styles below.
+ *
+ * Inter (UI) + JetBrains Mono (monospace) are loaded from fonts_core
+ * via @font-face below; both fall back gracefully to system stacks.
+ */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../plugins/fonts_core/static/inter/400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../plugins/fonts_core/static/inter/400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../plugins/fonts_core/static/inter/700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../plugins/fonts_core/static/inter/700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("../../plugins/fonts_core/static/inter/800.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../plugins/fonts_core/static/jetbrains-mono/400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../plugins/fonts_core/static/jetbrains-mono/700.woff2") format("woff2");
+}
+
+:root {
+  /* Accent, deep teal that reads as both serious and warm. */
+  --t-accent: #0d8c7e;
+  --t-accent-hover: #0a6f63;
+  --t-accent-soft: #e6f3f1;
+  --t-accent-fg: #ffffff;
+  --t-accent-ink: #064a42; /* darker variant for type on accent-soft */
+
+  /* Neutral scale, warm-zinc; values are ~2% warmer than pure zinc
+     so surfaces read as paper rather than clinical. */
+  --t-50:  #fafaf9;
+  --t-100: #f4f4f2;
+  --t-200: #e6e5e1;
+  --t-300: #d4d3cd;
+  --t-400: #a1a09a;
+  --t-500: #71706c;
+  --t-600: #52524f;
+  --t-700: #3f3f3d;
+  --t-800: #27272a;
+  --t-900: #18181b;
+
+  /* Surface layers, three depths so cards lift above the page bg
+     without harsh borders. Background is the deepest tint, surfaces
+     step up toward pure white. */
+  --t-bg:            #f1f0ec;
+  --t-surface:       #ffffff;
+  --t-surface-soft:  var(--t-50);
+  --t-surface-sunk:  var(--t-100);
+  --t-surface-raised:#ffffff;
+  --t-fg:            var(--t-900);
+  --t-fg-soft:       var(--t-600);
+  --t-muted:         var(--t-500);
+  --t-border:        var(--t-200);
+  --t-border-strong: var(--t-300);
+
+  --t-danger:    #dc2626;
+  --t-danger-bg: #fef2f2;
+  --t-warn:      #d97706;
+  --t-warn-bg:   #fffbeb;
+  --t-ok:        #16a34a;
+  --t-ok-bg:     #f0fdf4;
+
+  /* v0.56 admin-uplift tokens. Spec values from the
+     ``design_handoff_ui_uplift`` README; used by the .dx-* admin
+     surface (section cards, inset rows, status pills, code blocks).
+     Dark-mode equivalents live in the override block below. */
+  --t-inset:        #faf9f6;
+  --t-inset-border: #ebeae4;
+  --t-accent-tint:  #dcefe8;
+  --t-pill-ok-bg:     #e7f3ee;
+  --t-pill-ok-fg:     #15846a;
+  --t-pill-ok-border: #bfe3d4;
+  --t-pill-warn-bg:     #fcf6ea;
+  --t-pill-warn-fg:     #a06a1e;
+  --t-pill-warn-border: #ecdcbc;
+  --t-pill-danger-bg:     #fbeeec;
+  --t-pill-danger-fg:     #c0392b;
+  --t-pill-danger-border: #e7c6c1;
+  --t-pill-neutral-bg: #eceae4;
+  --t-pill-neutral-fg: #6a6a63;
+  --t-code-bg:     #eae7df;
+  --t-code-border: #dcd8cd;
+  --t-code-fg:     #4a463e;
+  --t-code-key:    #0f7a62;
+  --t-code-str:    #a35a2c;
+  --t-code-num:    #2f6f9e;
+  --t-code-kw:     #7d5bc6;
+  --t-code-punct:  #9a9a93;
+
+  /* Typography, Inter for UI, JetBrains Mono for code / IDs /
+     dimensions. Both prefer the bundled fonts_core woff2s and fall
+     back to native system stacks while loading. */
+  --t-font:      "Inter", ui-sans-serif, system-ui, -apple-system,
+                 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --t-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+                 Consolas, monospace;
+  /* Inter polish: single-storey a (cv11), tabular numbers (cv01),
+     stylistic set 1. Browsers that don't support these just ignore. */
+  --t-font-features: "cv11", "ss01", "cv01";
+
+  --t-size-xs:  11px;
+  --t-size-sm:  12px;
+  --t-size-md:  13px;
+  --t-size-base:14px;
+  --t-size-lg:  16px;
+  --t-size-xl:  18px;
+  --t-size-2xl: 22px;
+  --t-size-3xl: 28px;
+  --t-size-4xl: 36px;
+
+  /* Spacing, 4px base, 8px stride */
+  --t-space-1: 4px;
+  --t-space-2: 8px;
+  --t-space-3: 12px;
+  --t-space-4: 16px;
+  --t-space-5: 20px;
+  --t-space-6: 24px;
+  --t-space-7: 32px;
+  --t-space-8: 48px;
+  --t-space-9: 64px;
+
+  /* Radius */
+  --t-radius-sm:  6px;
+  --t-radius:     10px;
+  --t-radius-md:  10px;
+  --t-radius-lg:  16px;
+  --t-radius-xl:  20px;
+  --t-radius-pill: 999px;
+
+  /* Shadow scale, softer / layered so cards feel like paper on paper.
+     Each step adds depth + a slightly longer cast. */
+  --t-shadow-xs: 0 1px 0 rgba(16,12,8,.04);
+  --t-shadow-sm: 0 1px 2px rgba(16,12,8,.05),
+                 0 1px 1px rgba(16,12,8,.03);
+  --t-shadow:    0 1px 2px rgba(16,12,8,.04),
+                 0 2px 6px rgba(16,12,8,.05);
+  --t-shadow-md: 0 1px 2px rgba(16,12,8,.04),
+                 0 8px 20px rgba(16,12,8,.07);
+  --t-shadow-lg: 0 4px 12px rgba(16,12,8,.06),
+                 0 16px 40px rgba(16,12,8,.10);
+  --t-shadow-xl: 0 8px 24px rgba(16,12,8,.10),
+                 0 32px 80px rgba(16,12,8,.14);
+  /* Inset highlight used on raised buttons + preview frames so they
+     read as "lit" rather than flat fills. */
+  --t-shadow-inset:  inset 0 1px 0 rgba(255,255,255,.6),
+                     inset 0 0 0 1px rgba(16,12,8,.03);
+  --t-ring:      0 0 0 3px color-mix(in oklab, var(--t-accent) 25%, transparent);
+  --t-ring-soft: 0 0 0 4px color-mix(in oklab, var(--t-accent) 14%, transparent);
+
+  /* Motion, two ease curves: snappy for press/click, spring for
+     hover/lift/state changes that should feel buoyant. */
+  --t-ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-trans:      150ms var(--t-ease-snappy);
+  --t-trans-fast: 80ms ease;
+  --t-trans-slow: 280ms var(--t-ease-snappy);
+  color-scheme: light;
+}
+
+/* Dark theme, toggled via <html data-theme="dark">. Slate-leaning
+   neutrals (cool, not pure black) so the teal accent reads as warm
+   contrast rather than competing with a charcoal bg. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --t-bg:            #0e1015;
+  --t-surface:       #181b22;
+  --t-surface-soft:  #1f232b;
+  --t-surface-sunk:  #13161c;
+  --t-surface-raised:#1d2129;
+  --t-fg:            #e7e9ee;
+  --t-fg-soft:       #b6bcc7;
+  --t-muted:         #8b93a1;
+  --t-border:        #2a2f38;
+  --t-border-strong: #3a4150;
+
+  --t-accent:        #2dd4bf;
+  --t-accent-hover:  #14b8a6;
+  --t-accent-soft:   color-mix(in oklab, #2dd4bf 18%, #181b21);
+  --t-accent-fg:     #04241f;
+  --t-accent-ink:    #99f6e4;
+
+  --t-danger:    #f87171;
+  --t-danger-bg: color-mix(in oklab, #f87171 18%, #181b21);
+  --t-warn:      #fbbf24;
+  --t-warn-bg:   color-mix(in oklab, #fbbf24 18%, #181b21);
+  --t-ok:        #4ade80;
+  --t-ok-bg:     color-mix(in oklab, #4ade80 18%, #181b21);
+
+  /* v0.56 admin-uplift dark-mode overrides. */
+  --t-inset:        #1f232b;
+  --t-inset-border: #2a2f38;
+  --t-accent-tint:  #143029;
+  --t-pill-ok-bg:     color-mix(in oklab, #2dd4bf 18%, #181b21);
+  --t-pill-ok-fg:     #5eead4;
+  --t-pill-ok-border: color-mix(in oklab, #2dd4bf 30%, #181b21);
+  --t-pill-warn-bg:     color-mix(in oklab, #fbbf24 16%, #181b21);
+  --t-pill-warn-fg:     #f3c97e;
+  --t-pill-warn-border: color-mix(in oklab, #fbbf24 30%, #181b21);
+  --t-pill-danger-bg:     color-mix(in oklab, #f87171 18%, #181b21);
+  --t-pill-danger-fg:     #f87171;
+  --t-pill-danger-border: color-mix(in oklab, #f87171 30%, #181b21);
+  --t-pill-neutral-bg: #1f232b;
+  --t-pill-neutral-fg: #b6bcc7;
+  --t-code-bg:     #11141a;
+  --t-code-border: #2a2f38;
+  --t-code-fg:     #c8cdd6;
+  --t-code-key:    #5eead4;
+  --t-code-str:    #e0a45c;
+  --t-code-num:    #7fb4e8;
+  --t-code-kw:     #c3a6f0;
+  --t-code-punct:  #8b93a1;
+
+  --t-shadow-xs: 0 1px 0 rgba(0,0,0,.40);
+  --t-shadow-sm: 0 1px 2px rgba(0,0,0,.30),
+                 0 1px 1px rgba(0,0,0,.20);
+  --t-shadow:    0 1px 2px rgba(0,0,0,.30),
+                 0 2px 6px rgba(0,0,0,.35);
+  --t-shadow-md: 0 1px 2px rgba(0,0,0,.30),
+                 0 8px 24px rgba(0,0,0,.45);
+  --t-shadow-lg: 0 4px 12px rgba(0,0,0,.40),
+                 0 16px 40px rgba(0,0,0,.55);
+  --t-shadow-xl: 0 8px 28px rgba(0,0,0,.55),
+                 0 32px 80px rgba(0,0,0,.65);
+  --t-shadow-inset: inset 0 1px 0 rgba(255,255,255,.04),
+                    inset 0 0 0 1px rgba(255,255,255,.02);
+  --t-ring:      0 0 0 3px color-mix(in oklab, var(--t-accent) 35%, transparent);
+  --t-ring-soft: 0 0 0 4px color-mix(in oklab, var(--t-accent) 22%, transparent);
+}
+
+/* Dev-mode tell: a `tesserae --dev` server retints the admin accent
+   reddish-orange so it's obvious you're not on your production instance.
+   Set on <body> (added by _base.html when config.DEV_MODE) so it wins
+   over the :root + dark-theme accent for everything inside. */
+body.dev-mode {
+  --t-accent:        #e0542a;
+  --t-accent-hover:  #c0431d;
+  --t-accent-soft:   #fbe7df;
+  --t-accent-fg:     #ffffff;
+  --t-accent-ink:    #7c2b12;
+}
+:root[data-theme="dark"] body.dev-mode {
+  --t-accent:        #ff7a4d;
+  --t-accent-hover:  #ff9166;
+  --t-accent-soft:   color-mix(in oklab, #ff7a4d 18%, #181b21);
+  --t-accent-fg:     #2a0f06;
+  --t-accent-ink:    #ffd9c9;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+/* Belt-and-braces guard against any inner element forcing a
+   horizontal scrollbar on the page itself (e.g. a wide condition
+   picker row, a code block with no wrap, an embedded preview).
+   Individual scrollable surfaces (.dx-code, .preview-frame, the
+   composer canvas) handle their own overflow inside their box.
+   ``overflow-x: clip`` is used instead of ``hidden`` because
+   ``hidden`` on html/body establishes a new scroll container and
+   silently breaks ``position: sticky`` everywhere on the page
+   (e.g. the editor's live preview, the sticky editor header).
+   ``clip`` gives the same no-scrollbar guarantee without that
+   side-effect. ``hidden`` is kept as a cascade fallback for
+   browsers that don't understand ``clip`` (pre-Safari 16, pre-
+   Chrome 90, pre-Firefox 81); they get the old behaviour. */
+html, body { overflow-x: hidden; overflow-x: clip; max-width: 100%; }
+
+/* Screen-reader-only utility. Visually hidden, still announced.
+   Used for the play-step buttons inside the rotation step rows
+   (the icon carries the visible meaning; the span carries the
+   indexed label so a screen reader says "Play step 1 now"). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body.admin {
+  background: var(--t-bg);
+  color: var(--t-fg);
+  font: 400 var(--t-size-base)/1.5 var(--t-font);
+  font-feature-settings: var(--t-font-features);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Faint ambient gradient + grid noise on the page bg so it doesn't
+     read as a single flat fill. Two stacked radial gradients (one warm
+     near the top, one cooler near the bottom) and a 24px square grid
+     drawn with two thin lines of the border colour. The grid is at
+     0.4% opacity, invisible up close, gives the page faint texture
+     when you scan past it. */
+  background-image:
+    radial-gradient(ellipse 800px 400px at 50% -200px,
+      color-mix(in oklab, var(--t-accent) 5%, transparent), transparent),
+    linear-gradient(to right, rgba(16,12,8,0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(16,12,8,0.015) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+  background-attachment: fixed;
+}
+:root[data-theme="dark"] body.admin {
+  background-image:
+    radial-gradient(ellipse 800px 400px at 50% -200px,
+      color-mix(in oklab, var(--t-accent) 10%, transparent), transparent),
+    linear-gradient(to right, rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+  background-attachment: fixed;
+}
+
+/* Sharper headings; numerals tabular so dimensions / counts don't
+   jitter as values change. */
+h1, h2, h3, h4 { font-feature-settings: var(--t-font-features), "ss03"; }
+code, pre, .mono, .meta dd, .field-id, [data-mono] {
+  font-family: var(--t-font-mono);
+  font-feature-settings: "calt", "ss01";
+  font-variant-numeric: tabular-nums;
+}
+
+a { color: var(--t-accent); text-decoration: none; }
+a:hover { color: var(--t-accent-hover); }
+
+/* ----- Icons (Phosphor) ----------------------------------------------
+   Inline icons inherit colour + sit on the baseline. Standalone icons
+   (in card-head, empty states) bump up via .ph-lg / .ph-2x classes. */
+
+.ph,
+.ph-fill,
+.ph-bold,
+.ph-duotone,
+.ph-light,
+.ph-thin {
+  vertical-align: -0.125em;
+  font-size: 1.05em;
+  line-height: 1;
+}
+.ph.is-lg { font-size: 1.5em; }
+.ph.is-xl { font-size: 2em; }
+.ph.is-2x { font-size: 32px; }
+.ph.is-3x { font-size: 48px; }
+.ph.is-accent { color: var(--t-accent); }
+.ph.is-muted  { color: var(--t-muted); }
+.ph.is-soft   { color: var(--t-fg-soft); }
+.ph.is-ok     { color: var(--t-ok); }
+.ph.is-warn   { color: var(--t-warn); }
+.ph.is-danger { color: var(--t-danger); }
+
+.icon-box {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--t-radius-sm);
+  background: var(--t-accent-soft);
+  color: var(--t-accent);
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.icon-box.is-sm { width: 24px; height: 24px; font-size: 14px; }
+.icon-box.is-lg { width: 40px; height: 40px; font-size: 22px; }
+.icon-box.is-muted { background: var(--t-surface-sunk); color: var(--t-fg-soft); }
+
+/* -- info-pop: click-to-open contextual help icon --------------------
+ *
+ * Replaces what used to be paragraphs of always-visible field-help and
+ * card-blurb text. The icon sits inline next to a label or heading and
+ * pops a small panel below the icon when clicked. Click-away or Escape
+ * closes; only one popover open at a time. JS in static/info-pop.js. */
+.info-pop-wrap {
+  display: inline-block;
+  position: relative;
+  vertical-align: baseline;
+  line-height: 0;
+  margin-left: 4px;
+}
+.info-pop {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 1px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--t-fg-soft);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: color 80ms ease, background 80ms ease;
+}
+.info-pop:hover { color: var(--t-accent); }
+.info-pop:focus-visible {
+  outline: 2px solid var(--t-accent);
+  outline-offset: 2px;
+}
+.info-pop[aria-expanded="true"] {
+  color: var(--t-accent);
+  background: var(--t-accent-soft);
+}
+.info-pop .ph { font-size: inherit; }
+.info-pop-content {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 10px 12px;
+  background: var(--t-surface);
+  color: var(--t-fg);
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  font-size: var(--t-size-sm);
+  line-height: 1.45;
+  white-space: normal;
+  display: block;
+}
+.info-pop-content[hidden] { display: none; }
+/* JS adds .is-flipped when the popover would overflow the right edge so
+ * it anchors to the right of the icon instead of the left. */
+.info-pop-content.is-flipped {
+  left: auto;
+  right: 0;
+}
+
+
+/* App footer, version + GitHub link, subtle link-only style.
+   Sits below every page's <main> so it's always reachable but never
+   demands attention. Only the version text is the link; no surrounding
+   chrome. */
+.app-footer {
+  padding: var(--t-space-6) var(--t-space-4) var(--t-space-7);
+  text-align: center;
+  font-size: var(--t-size-sm);
+  color: var(--t-fg-soft, var(--t-fg));
+  opacity: 0.6;
+  transition: opacity 140ms ease-out;
+}
+
+/* Small caret used inside <summary>/<details> toggles for dropdown
+   navs, plugin pickers, and disclosure panels. Replaces a handful of
+   inline ``style="font-size:12px; opacity:.6"`` attrs that drifted
+   between templates. Use as a modifier on a Phosphor caret-down icon:
+   ``<i class="ph ph-caret-down caret-soft">``. */
+.caret-soft {
+  font-size: var(--t-size-sm);
+  opacity: 0.6;
+}
+.app-footer:hover { opacity: 0.95; }
+.app-footer a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+  padding-bottom: 1px;
+}
+.app-footer a:hover {
+  color: var(--t-fg);
+  border-bottom-style: solid;
+}
+.app-footer a .ph {
+  font-size: 0.95em;
+  vertical-align: -0.08em;
+  margin-right: 2px;
+  border: 0;
+}
+.app-footer a:last-child .ph { margin-right: 0; margin-left: 2px; }
+.app-footer-sep {
+  margin: 0 var(--t-space-2);
+  opacity: 0.5;
+  border: 0;
+}

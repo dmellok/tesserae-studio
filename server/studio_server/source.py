@@ -35,6 +35,17 @@ from .tesserae import TesseraeClient
 _DEFAULT_W = 240
 _DEFAULT_H = 160
 
+# A vendored subset of Tesserae's assets (the chrome CSS + fonts, the Phosphor
+# weights, spectra-widgets/chart + Chart.js) shipped inside the package so Studio
+# renders and previews with no disk checkout and no reachable Tesserae. Used only
+# as a last-resort fallback: a live/disk Tesserae still wins for fidelity.
+_BUNDLED_ASSETS = Path(__file__).resolve().parent / "assets"
+
+
+def _bundled_asset(rel: str) -> Path | None:
+    target = _safe_join(_BUNDLED_ASSETS, rel)
+    return target if target is not None and target.is_file() else None
+
 
 def _safe_join(root: Path, rel: str) -> Path | None:
     """Join ``rel`` under ``root``, refusing anything that escapes it."""
@@ -110,13 +121,25 @@ class TesseraeSource:
     # -- assets ------------------------------------------------------------
     async def serve_asset(self, request: Request, rel: str) -> Response:
         """Serve ``rel`` (e.g. ``static/style/base.css`` or
-        ``plugins/clock/client.js``) from disk when available, else proxy the
-        live instance."""
+        ``plugins/clock/client.js``) from disk when available, else the live
+        instance, else Studio's bundled copy so the UI still renders offline."""
         if self.path is not None:
             target = _safe_join(self.path, rel)
             if target is not None and target.is_file():
                 return FileResponse(target)
-        return await forward(request, self.client.raw)
+        # Try the live instance; if it is unreachable or 404s, fall back to the
+        # vendored asset so the chrome + preview runtime work with no Tesserae.
+        proxied: Response | None = None
+        try:
+            proxied = await forward(request, self.client.raw)
+            if proxied.status_code < 400:
+                return proxied
+        except Exception:  # noqa: BLE001 - live down; try the bundled copy
+            proxied = None
+        bundled = _bundled_asset(rel)
+        if bundled is not None:
+            return FileResponse(bundled)
+        return proxied if proxied is not None else Response(status_code=502)
 
     # -- catalog -----------------------------------------------------------
     async def catalog(self) -> dict[str, Any]:

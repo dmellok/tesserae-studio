@@ -24,6 +24,13 @@
     <link rel="stylesheet" href="/static/icons/phosphor/bold/style.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/fill/style.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/duotone/style.css" />
+    <!-- Chart.js as a document-level global (window.Chart), exactly as Tesserae's
+         compose.html loads it, so a previewed widget that imports spectra-chart.js
+         has the global constructor ready. The sankey plugin registers its
+         controller on the same global. Served from /static/vendor (disk / live /
+         Studio's bundled fallback). -->
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/vendor/chartjs-chart-sankey.min.js"></script>
   </head>
   <body class="admin">
     <div id="app"></div>

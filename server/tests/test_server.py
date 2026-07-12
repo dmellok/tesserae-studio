@@ -121,6 +121,27 @@ def test_live_asset_proxies_plugin(live_client):
     assert "export default" in resp.text
 
 
+# -- bundled assets (no disk checkout, no live Tesserae) --------------------
+def test_bundled_assets_serve_offline(live_client):
+    """With no disk checkout and the live instance 404ing an asset, Studio falls
+    back to its vendored copy so the chrome + preview runtime still load."""
+    # live_client has tesserae_path=None; make the live instance a black hole.
+    live_client.app.state.tesserae.raw._transport = httpx.MockTransport(
+        lambda req: httpx.Response(404, text="down")
+    )
+    for path, ctype in [
+        ("/static/style/base.css", "text/css"),
+        ("/static/style/spectra-widgets.css", "text/css"),
+        ("/static/vendor/chart.umd.min.js", "javascript"),
+        ("/static/spectra-chart.js", "javascript"),
+        ("/static/icons/phosphor/bold/Phosphor-Bold.woff2", "font/woff2"),
+        ("/plugins/fonts_core/static/inter/400.woff2", "font/woff2"),
+    ]:
+        resp = live_client.get(path)
+        assert resp.status_code == 200, f"{path} -> {resp.status_code}"
+        assert ctype in resp.headers["content-type"], f"{path} type {resp.headers['content-type']}"
+
+
 # -- disk mode (standalone) -------------------------------------------------
 def test_disk_health_no_live(disk_client):
     body = disk_client.get("/studio/api/health").json()

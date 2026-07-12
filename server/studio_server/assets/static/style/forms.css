@@ -1,0 +1,1515 @@
+/* ----- Form ---------------------------------------------------------- */
+
+.form {
+  display: grid;
+  gap: var(--t-space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--t-space-1);
+}
+
+.field > label,
+.field-label {
+  font-weight: 500;
+  font-size: var(--t-size-md);
+  color: var(--t-fg);
+  letter-spacing: -0.005em;
+}
+
+.field input[type="text"],
+.field input[type="password"],
+.field input[type="number"],
+.field input[type="url"],
+.field input[type="email"],
+.field input[type="time"],
+.field input[type="date"],
+.field input[type="search"],
+.field input[type="color"],
+.field input[type="file"],
+.field select,
+.field textarea {
+  width: 100%;
+  padding: var(--t-space-2) var(--t-space-3);
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-sm);
+  background: var(--t-surface);
+  font: inherit;
+  font-size: var(--t-size-base);
+  color: var(--t-fg);
+  transition: border-color var(--t-trans-fast), box-shadow var(--t-trans-fast);
+}
+
+.field input[type="color"] {
+  padding: 2px;
+  height: 38px;
+  width: 60px;
+  cursor: pointer;
+}
+
+/* Native selects shed their OS chrome and pick up a custom caret so
+   they read as a sibling of the other text inputs. */
+.field select,
+.dropzone-meta select,
+.saved-options select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--t-fg-soft) 50%),
+    linear-gradient(135deg, var(--t-fg-soft) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-size:
+    6px 6px,
+    6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+  cursor: pointer;
+}
+.field select:focus,
+.field select:hover {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--t-accent) 50%),
+    linear-gradient(135deg, var(--t-accent) 50%, transparent 50%);
+}
+.field select[multiple] {
+  background-image: none;
+  padding-right: var(--t-space-3);
+  min-height: 120px;
+}
+.field select[multiple] option {
+  padding: var(--t-space-2) var(--t-space-3);
+}
+.field select[multiple] option:checked {
+  background: var(--t-accent-soft);
+  color: var(--t-accent);
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover {
+  border-color: var(--t-border-strong);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--t-accent);
+  box-shadow: var(--t-ring);
+}
+
+.field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--t-accent);
+  margin: var(--t-space-1) 0 0;
+}
+
+.field--boolean {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--t-space-3);
+}
+.field--boolean label { order: 2; font-weight: 500; }
+.field--boolean input { order: 1; }
+
+.field-help {
+  margin: var(--t-space-1) 0 0;
+  font-size: 12px;
+  color: var(--t-muted);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: var(--t-space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.actions .ghost-link { margin-right: auto; }
+
+/* ----- Buttons -------------------------------------------------------
+   Three tiers: default (paper card), primary (accent, with inset
+   highlight + soft shadow so it sits proud of the surface), ghost
+   (transparent, hover-tinted). All share the same press-down
+   transform + focus-ring shape. */
+
+button,
+.btn {
+  font: inherit;
+  font-size: var(--t-size-md);
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--t-radius-sm);
+  padding: var(--t-space-2) var(--t-space-4);
+  border: 1px solid var(--t-border);
+  background: var(--t-surface);
+  color: var(--t-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--t-space-2);
+  line-height: 1.2;
+  box-shadow: var(--t-shadow-xs);
+  transition:
+    background var(--t-trans-fast),
+    border-color var(--t-trans-fast),
+    color var(--t-trans-fast),
+    box-shadow var(--t-trans),
+    transform 120ms var(--t-ease-spring);
+  user-select: none;
+  white-space: nowrap;
+}
+button:hover {
+  border-color: var(--t-border-strong);
+  background: var(--t-surface-soft);
+  box-shadow: var(--t-shadow-sm);
+  transform: translateY(-0.5px);
+}
+button:active {
+  transform: translateY(0.5px);
+  box-shadow: var(--t-shadow-xs);
+}
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--t-shadow-sm), var(--t-ring);
+}
+
+button .ph { font-size: 16px; }
+
+button.primary,
+.btn-primary {
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--t-accent) 92%, white),
+    var(--t-accent));
+  color: var(--t-accent-fg);
+  border-color: color-mix(in oklab, var(--t-accent) 70%, black);
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.28),
+    var(--t-shadow-sm);
+}
+button.primary:hover,
+.btn-primary:hover {
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--t-accent-hover) 92%, white),
+    var(--t-accent-hover));
+  border-color: color-mix(in oklab, var(--t-accent-hover) 70%, black);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.28),
+    var(--t-shadow),
+    0 0 0 4px color-mix(in oklab, var(--t-accent) 18%, transparent);
+  transform: translateY(-0.5px);
+}
+button.primary:focus-visible,
+.btn-primary:focus-visible {
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.28),
+    var(--t-ring-soft);
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--t-fg-soft);
+  box-shadow: none;
+}
+button.ghost:hover {
+  background: color-mix(in oklab, var(--t-fg) 5%, transparent);
+  color: var(--t-accent);
+  box-shadow: none;
+  transform: translateY(-0.5px);
+}
+button.ghost.danger { color: var(--t-fg-soft); }
+button.ghost.danger:hover { color: var(--t-danger); background: var(--t-danger-bg); }
+
+code {
+  background: var(--t-surface-sunk);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font: 0.92em var(--t-font-mono);
+  color: var(--t-fg-soft);
+}
+
+/* ----- Flash notifications ------------------------------------------
+   Pinned to the top-right corner of the viewport. Each card slides in
+   from the right + fades on render, auto-dismisses after 5s, or on
+   close-button click. Stacking is column-flex so multiple flashes
+   queue downward. */
+
+.flashes {
+  position: fixed;
+  top: calc(var(--t-space-6) + 64px); /* clears the sticky topbar */
+  right: var(--t-space-6);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: var(--t-space-2);
+  width: min(380px, calc(100vw - var(--t-space-6) * 2));
+  pointer-events: none;
+}
+
+.flash {
+  pointer-events: auto;
+  padding: var(--t-space-3) var(--t-space-3) var(--t-space-3) var(--t-space-4);
+  border-radius: var(--t-radius-md);
+  font-size: var(--t-size-md);
+  border: 1px solid color-mix(in oklab, var(--t-border) 70%, transparent);
+  /* Frosted glass, matching the topbar (translucent surface + blur). */
+  background: color-mix(in oklab, var(--t-surface) 80%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  color: var(--t-fg);
+  display: flex;
+  align-items: center;
+  gap: var(--t-space-3);
+  box-shadow: var(--t-shadow-md);
+  /* Slide-in animation: card enters offset right + invisible, lands
+     into place with a short transition. The is-leaving class reverses. */
+  animation: flash-in 280ms var(--t-ease-spring) both;
+  transition:
+    transform 220ms var(--t-ease-snappy),
+    opacity 220ms var(--t-ease-snappy);
+}
+.flash.is-leaving {
+  transform: translateX(120%);
+  opacity: 0;
+}
+@keyframes flash-in {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash { animation: none; transition: opacity 120ms linear; }
+  .flash.is-leaving { transform: none; }
+}
+
+.flash-msg { flex: 1; min-width: 0; }
+.flash-icon { font-size: 18px; flex-shrink: 0; color: var(--t-accent); }
+.flash--ok    { border-color: color-mix(in oklab, var(--t-ok) 45%, transparent); }
+.flash--ok    .flash-icon { color: var(--t-ok); }
+.flash--error { border-color: color-mix(in oklab, var(--t-danger) 45%, transparent); }
+.flash--error .flash-icon { color: var(--t-danger); }
+.flash--warn  { border-color: color-mix(in oklab, var(--t-warn) 45%, transparent); }
+.flash--warn  .flash-icon { color: var(--t-warn); }
+
+/* Solid fallback when the browser can't blur, so flashes never wash out. */
+@supports not (backdrop-filter: blur(1px)) {
+  .flash { background: var(--t-surface); }
+}
+
+.flash-close {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 0;
+  border-radius: var(--t-radius-sm);
+  color: var(--t-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.flash-close:hover { color: var(--t-fg); background: var(--t-surface-sunk); }
+.flash-close .ph { font-size: 16px; }
+
+/* ----- Dashboard icon picker --------------------------------------- */
+
+.icon-picker {
+  position: relative;
+  display: block;
+}
+.icon-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-space-2);
+  width: 100%;
+  padding: var(--t-space-2) var(--t-space-3);
+  background: var(--t-surface);
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-sm);
+  cursor: pointer;
+  font: inherit;
+  color: var(--t-fg);
+  text-align: left;
+}
+.icon-picker-trigger:hover { border-color: var(--t-border-strong); }
+.icon-picker.is-open .icon-picker-trigger {
+  border-color: var(--t-accent);
+  box-shadow: var(--t-ring);
+}
+.icon-picker-current {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  color: var(--t-accent);
+}
+.icon-picker-current .ph { font-size: 18px; }
+.icon-picker-label {
+  font-size: var(--t-size-md);
+  color: var(--t-fg-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.icon-picker-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 80;
+  background: var(--t-surface);
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-md);
+  box-shadow: var(--t-shadow-lg);
+  padding: var(--t-space-2);
+  display: grid;
+  gap: var(--t-space-2);
+}
+.icon-picker-popover[hidden] { display: none !important; }
+.icon-picker-search {
+  display: flex;
+  align-items: center;
+}
+.icon-picker-search input {
+  width: 100%;
+  padding: var(--t-space-2) var(--t-space-3);
+  font: inherit;
+  font-size: var(--t-size-md);
+  background: var(--t-surface-soft);
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-sm);
+  color: var(--t-fg);
+}
+.icon-picker-search input:focus {
+  outline: none;
+  border-color: var(--t-accent);
+  background: var(--t-surface);
+}
+
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: var(--t-space-1);
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.icon-pick {
+  display: inline-grid;
+  place-items: center;
+  height: 40px;
+  border: 1px solid transparent;
+  border-radius: var(--t-radius-sm);
+  background: transparent;
+  color: var(--t-fg-soft);
+  cursor: pointer;
+  padding: 0;
+}
+.icon-pick .ph { font-size: 18px; }
+.icon-pick:hover {
+  background: var(--t-surface-soft);
+  color: var(--t-accent);
+}
+.icon-pick.is-active {
+  background: var(--t-accent-soft);
+  border-color: color-mix(in oklab, var(--t-accent) 35%, transparent);
+  color: var(--t-accent);
+}
+.icon-picker-empty {
+  padding: var(--t-space-3);
+  text-align: center;
+  font-size: var(--t-size-sm);
+  color: var(--t-muted);
+}
+
+/* ----- Per-entity name + icon overrides -----------------------------
+   Rendered by static/entity-overrides.js for HA sensor + entities
+   widgets. The hidden textarea is the source of truth; the rows render
+   from the linked multiselect's ticked entities. */
+
+.entity-overrides-storage {
+  /* Off-screen but still focusable as a form field, the JS bumps
+     'input' on it for the editor's dirty/preview watcher. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+.entity-overrides-list {
+  display: grid;
+  gap: var(--t-space-2);
+}
+.entity-overrides-empty {
+  margin: 0;
+  padding: var(--t-space-3);
+  font-size: var(--t-size-sm);
+  color: var(--t-muted);
+  background: var(--t-surface-soft);
+  border: 1px dashed var(--t-border);
+  border-radius: var(--t-radius-sm);
+  text-align: center;
+}
+.entity-override-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.3fr) minmax(0, 1.4fr) minmax(120px, 0.7fr);
+  align-items: center;
+  gap: var(--t-space-2);
+  padding: var(--t-space-2);
+  background: var(--t-surface-soft);
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-sm);
+  /* Drop indicator slot: a 2px border that lights up on the right
+     side when the row is the drag target. */
+  box-shadow: 0 0 0 0 transparent inset;
+  transition: box-shadow 80ms ease, background 80ms ease;
+}
+.entity-override-row.is-dragging {
+  opacity: 0.4;
+}
+.entity-override-row.is-drop-above {
+  box-shadow: 0 -2px 0 0 var(--t-accent) inset, 0 2px 0 -1px var(--t-accent);
+}
+.entity-override-row.is-drop-below {
+  box-shadow: 0 2px 0 0 var(--t-accent) inset, 0 -2px 0 -1px var(--t-accent);
+}
+.entity-override-drag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--t-radius-sm);
+  color: var(--t-fg-soft);
+  cursor: grab;
+  touch-action: none;
+}
+.entity-override-drag:hover {
+  background: var(--t-surface);
+  color: var(--t-fg);
+}
+.entity-override-drag:active {
+  cursor: grabbing;
+}
+.entity-override-drag .ph {
+  font-size: 16px;
+}
+@media (max-width: 640px) {
+  /* Stack on narrow screens, the inline icon picker needs full row
+     width for its popover not to clip out of the cell card. */
+  .entity-override-row {
+    grid-template-columns: auto 1fr;
+  }
+  .entity-override-row .entity-override-name,
+  .entity-override-row .icon-picker--inline {
+    grid-column: 1 / -1;
+  }
+}
+.entity-override-id {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.entity-override-label {
+  font-weight: 600;
+  color: var(--t-fg);
+  font-size: var(--t-size-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entity-override-eid {
+  font-family: var(--t-font-mono, ui-monospace, monospace);
+  font-size: var(--t-size-xs);
+  color: var(--t-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entity-override-row .entity-override-name {
+  width: 100%;
+}
+.entity-override-row .icon-picker--inline .icon-picker-trigger {
+  padding: var(--t-space-2);
+  justify-content: center;
+}
+.entity-override-row .icon-picker--inline .icon-picker-label {
+  display: none;
+}
+/* The icon-picker column is narrow; let the popover expand leftwards
+   over the rest of the row so its grid has enough room for the icon
+   tiles. ``right: 0`` anchors it to the trigger's right edge. */
+.entity-override-row .icon-picker--inline .icon-picker-popover {
+  left: auto;
+  right: 0;
+  min-width: 320px;
+}
+
+/* ----- File dropzone -------------------------------------------------
+   Flat dashed-border drop target. Border colour shifts to accent on
+   hover; on drag-over the border solidifies and the background tints
+   with --t-accent-soft. No glows, no gradients, no animations. */
+
+.dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 320px;
+  border: 2px dashed var(--t-border-strong);
+  border-radius: var(--t-radius-xl);
+  padding: var(--t-space-8) var(--t-space-5);
+  background: var(--t-surface-soft);
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color var(--t-trans-fast),
+    border-style var(--t-trans-fast),
+    background var(--t-trans-fast);
+}
+.dropzone:hover { border-color: var(--t-accent); }
+.dropzone.is-dragging {
+  border-color: var(--t-accent);
+  border-style: solid;
+  background: var(--t-accent-soft);
+}
+.dropzone-input {
+  /* Visually-hidden but still focusable + form-submittable. The
+     surrounding <label> is what makes the dropzone clickable. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.dropzone-body {
+  text-align: center;
+  pointer-events: none;
+  display: grid;
+  justify-items: center;
+  gap: var(--t-space-3);
+  position: relative;
+  z-index: 1;
+}
+.dropzone-body .dropzone-icon {
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: var(--t-surface-sunk);
+  color: var(--t-accent);
+  font-size: 52px;
+  transition: background var(--t-trans-fast);
+}
+.dropzone.is-dragging .dropzone-icon { background: var(--t-accent-soft); }
+.dropzone-title {
+  font-size: var(--t-size-xl);
+  font-weight: 600;
+  margin: 0;
+  color: var(--t-fg);
+  letter-spacing: -0.015em;
+}
+.dropzone-hint {
+  margin: 0;
+  color: var(--t-muted);
+  font-size: var(--t-size-sm);
+}
+.dropzone-browse {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-space-1);
+  padding: var(--t-space-2) var(--t-space-4);
+  margin-top: var(--t-space-2);
+  border-radius: var(--t-radius-pill);
+  background: var(--t-surface);
+  border: 1px solid var(--t-border-strong);
+  font-size: var(--t-size-sm);
+  font-weight: 600;
+  color: var(--t-fg-soft);
+  box-shadow: var(--t-shadow-xs);
+  transition: color var(--t-trans-fast), border-color var(--t-trans-fast);
+}
+.dropzone:hover .dropzone-browse {
+  color: var(--t-accent);
+  border-color: color-mix(in oklab, var(--t-accent) 50%, var(--t-border));
+}
+.dropzone-preview {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  gap: var(--t-space-4);
+  align-items: center;
+  width: 100%;
+}
+/* The HTML `hidden` attribute should win over `display: grid` above -
+   browsers map it to `display: none` only when no other display rule
+   targets the element, so spell it out. */
+.dropzone-preview[hidden],
+.dropzone-body[hidden] {
+  display: none !important;
+}
+.dropzone-preview img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  background: var(--t-surface);
+  border-radius: var(--t-radius-sm);
+  border: 1px solid var(--t-border);
+  padding: var(--t-space-2);
+}
+.dropzone-meta { display: grid; gap: var(--t-space-1); min-width: 0; }
+.dropzone-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-size-md);
+}
+.dropzone-preview button { position: relative; z-index: 1; }
+
+/* ----- Reusable form components (sliders + switches) -------------- */
+
+.field--slider .slider-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--t-space-2);
+}
+
+.slider-value {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-size-sm);
+  font-weight: 600;
+  color: var(--t-fg-soft);
+  background: var(--t-surface-soft);
+  padding: 2px var(--t-space-2);
+  border-radius: var(--t-radius-pill);
+}
+
+input[type="range"].slider {
+  width: 100%;
+  margin: var(--t-space-2) 0 var(--t-space-1);
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  --slider-fill: 0%;
+}
+
+/* Track + thumb need vendor-prefixed selectors for cross-browser
+   styling because there's no standard yet. The `--slider-fill`
+   custom property is updated live by static/components.js so the
+   filled portion paints in the accent colour. */
+
+input[type="range"].slider::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background:
+    linear-gradient(to right,
+      var(--t-accent) 0,
+      var(--t-accent) var(--slider-fill),
+      var(--t-surface-sunk) var(--slider-fill),
+      var(--t-surface-sunk) 100%);
+  border: 1px solid var(--t-border);
+}
+input[type="range"].slider::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--t-surface-sunk);
+  border: 1px solid var(--t-border);
+}
+input[type="range"].slider::-moz-range-progress {
+  height: 8px;
+  background: var(--t-accent);
+  border-radius: 999px;
+}
+
+input[type="range"].slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--t-surface);
+  border: 2px solid var(--t-accent);
+  margin-top: -7px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  transition: transform 80ms ease, box-shadow 80ms ease;
+}
+input[type="range"].slider::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+}
+input[type="range"].slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--t-surface);
+  border: 2px solid var(--t-accent);
+  cursor: pointer;
+}
+
+input[type="range"].slider:focus { outline: none; }
+input[type="range"].slider:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--t-accent) 28%, transparent);
+}
+input[type="range"].slider:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--t-accent) 28%, transparent);
+}
+
+/* ----- Switch (boolean toggle) ----------------------------------- */
+
+.field--switch label.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-space-3);
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--t-fg);
+  /* Pad vertically so the switch claims roughly the same height as a
+     text-input field. Without this, the inline-flex label is just the
+     thumb-track height (~22px), which makes the switch field read as
+     touching whatever sits directly above it in a stacked form (eg.
+     a select dropdown's button). */
+  padding-block: var(--t-space-2);
+}
+
+.field--switch input[type="checkbox"] {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switch-track {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--t-border-strong);
+  transition: background 120ms ease;
+  flex-shrink: 0;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--t-surface);
+  transition: transform 120ms ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.switch input:checked ~ .switch-track {
+  background: var(--t-accent);
+}
+.switch input:checked ~ .switch-track .switch-thumb {
+  transform: translateX(18px);
+}
+.switch input:focus-visible ~ .switch-track {
+  outline: 2px solid color-mix(in oklab, var(--t-accent) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.switch-label {
+  flex: 1;
+  user-select: none;
+}
+
+/* The panel-preset section in /settings/server hides the custom w/h
+   sliders when a preset is selected. The .is-custom class is toggled
+   by static/pages/panel_settings.js based on the dropdown's value. */
+.panel-custom-fields { display: none; }
+.panel-section.is-custom .panel-custom-fields { display: contents; }
+
+/* Broker fields, the master switch swaps which set shows: built-in
+   fields when on, external host/auth fields when off. */
+.embedded-broker-fields,
+.external-broker-fields { display: contents; }
+.embedded-broker-fields.is-collapsed,
+.external-broker-fields.is-collapsed { display: none; }
+
+/* ----- Device checklist, selectable icon tiles -------------------- *
+ * Shared by the dashboard editor (multi-bind a page) and the Send page
+ * (multi-target a one-off push). Each row is a card; the native control
+ * (checkbox or radio) is visually hidden and the card reflects state via
+ * :has(). Works for both since :checked is control-agnostic. */
+.device-checklist {
+  display: grid;
+  gap: var(--t-space-2);
+}
+.device-check {
+  display: flex;
+  align-items: center;
+  gap: var(--t-space-3);
+  padding: var(--t-space-2) var(--t-space-3);
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-sm);
+  background: var(--t-surface);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.device-check input { position: absolute; opacity: 0; pointer-events: none; }
+.device-check:hover { border-color: var(--t-border-strong); }
+.device-check:focus-within { outline: 2px solid var(--t-accent); outline-offset: 2px; }
+.device-check:has(input:checked) {
+  border-color: var(--t-accent);
+  background: var(--t-accent-soft);
+}
+.device-check-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--t-radius-sm);
+  background: var(--t-surface-sunk);
+  color: var(--t-fg-soft);
+  font-size: 18px;
+}
+.device-check:has(input:checked) .device-check-icon {
+  background: var(--t-surface);
+  color: var(--t-accent);
+}
+.device-check-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.25;
+}
+.device-check-name {
+  font-size: var(--t-size-sm);
+  font-weight: 600;
+  color: var(--t-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-check-dims {
+  font-size: var(--t-size-xs);
+  color: var(--t-muted);
+}
+.device-check-tick {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--t-accent);
+  font-size: 18px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.device-check:has(input:checked) .device-check-tick { opacity: 1; }
+
+/* ----- Multi-select checklist (searchable) ------------------------- *
+ * Used by cell options that pick several values from a live list (e.g.
+ * the Home Assistant entity pickers). A filter box narrows a scrollable
+ * list of checkboxes so the user browses by name, never typing ids. */
+.multiselect {
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-sm);
+  background: var(--t-surface);
+  overflow: hidden;
+}
+.multiselect-search {
+  display: flex;
+  align-items: center;
+  gap: var(--t-space-2);
+  padding: var(--t-space-2) var(--t-space-3);
+  border-bottom: 1px solid var(--t-border);
+  color: var(--t-muted);
+}
+.multiselect-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 2px 0;
+  font: inherit;
+  color: var(--t-fg);
+}
+.multiselect-search input:focus { outline: none; }
+.multiselect-count {
+  flex: 0 0 auto;
+  font-size: var(--t-size-xs);
+  font-weight: 600;
+  color: var(--t-accent);
+  white-space: nowrap;
+}
+.multiselect-list {
+  max-height: 220px;
+  overflow-y: auto;
+}
+.multiselect-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--t-space-2);
+  padding: var(--t-space-2) var(--t-space-3);
+  cursor: pointer;
+  font-size: var(--t-size-sm);
+  border-top: 1px solid var(--t-border);
+  /* The hidden ``<input>`` inside uses ``position: absolute`` so the
+     checkbox doesn't take up space in the row layout. Anchoring its
+     containing block to the option label means the auto-focus
+     ``scrollIntoView`` the browser fires on click stays bounded to
+     the option's own bounding rect, the click target is already in
+     view, so no jump occurs. Without this the input's nearest
+     positioned ancestor is the document, and Chrome computes the
+     "scroll to make visible" against (0, 0) of the page. */
+  position: relative;
+}
+.multiselect-opt:first-of-type { border-top: 0; }
+/* The class rule above sets ``display: flex``, which beats the UA
+   ``[hidden] { display: none }`` rule on specificity, so the
+   filter's ``o.hidden = !match`` would visually do nothing without
+   this explicit override. Without it the search box appears to do
+   nothing because the filtered-out rows stay visible. */
+.multiselect-opt[hidden] { display: none; }
+/* The checkbox fills the whole option row but is fully transparent.
+ * Clicking anywhere on the label hits the input directly, the input's
+ * bounding box matches the option row's, and the browser's auto-
+ * focus scroll lands on a target that's already at the click point
+ *, so the page doesn't jump. ``pointer-events: none`` would defeat
+ * this (clicks would skip the input), we WANT the click to land on
+ * the input here, unlike older visually-hidden patterns. */
+.multiselect-opt input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.multiselect-opt:hover { background: var(--t-surface-soft); }
+.multiselect-tick {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--t-border-strong);
+  border-radius: 4px;
+  background: var(--t-surface);
+  color: var(--t-accent-fg);
+  font-size: 13px;
+}
+.multiselect-tick .ph { opacity: 0; }
+.multiselect-opt:has(input:checked) .multiselect-tick {
+  background: var(--t-accent);
+  border-color: var(--t-accent);
+}
+.multiselect-opt:has(input:checked) .multiselect-tick .ph { opacity: 1; }
+.multiselect-opt:has(input:checked) { background: var(--t-accent-soft); }
+.multiselect-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.multiselect-empty,
+.multiselect-hint {
+  margin: 0;
+  padding: var(--t-space-3);
+  font-size: var(--t-size-sm);
+  color: var(--t-muted);
+  text-align: center;
+}
+
+/* ----- Discovered devices strip (Settings → Devices) --------------- */
+.discovery-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.discovery-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius);
+  background: var(--t-surface-soft);
+}
+.discovery-id { font-weight: 600; margin-bottom: 0.4rem; }
+.discovery-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.2rem;
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--t-fg-soft);
+}
+.discovery-meta div { display: flex; gap: 0.4rem; }
+.discovery-meta dt { font-weight: 500; }
+.discovery-meta dd { margin: 0; }
+.discovery-actions { display: flex; flex-direction: column; gap: 0.4rem; align-items: stretch; }
+.discovery-actions .form--inline .actions { margin: 0; padding: 0; }
+.discovery-hint { font-size: 0.8em; color: var(--t-fg-soft); padding: 0.3rem 0.4rem; }
+@media (max-width: 540px) {
+  .discovery-row { flex-direction: column; align-items: stretch; }
+}
+
+/* ----- Orientation calibration (Settings → Devices) ---------------- */
+.calibrate-block { margin-top: 0.6rem; }
+.calibrate-prompt { margin-bottom: 0.5rem; }
+.calibrate-choices {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  max-width: 320px;
+}
+.calibrate-num {
+  font-size: 1.4rem;
+  font-weight: 700;
+  padding: 0.6rem 0;
+  justify-content: center;
+}
+
+/* ----- First-run setup wizard ------------------------------------- */
+.wizard { max-width: 640px; margin: 1.5rem auto; }
+.wizard-steps {
+  display: flex;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+}
+.wizard-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8em;
+  color: var(--t-fg-soft);
+  text-align: center;
+}
+.wizard-step-dot {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--t-border);
+  background: var(--t-surface-soft);
+  font-weight: 700;
+}
+.wizard-step.is-current .wizard-step-dot { background: var(--t-accent); color: #fff; border-color: var(--t-accent); }
+.wizard-step.is-done .wizard-step-dot { color: var(--t-accent); }
+.wizard-step.is-current .wizard-step-label { color: var(--t-fg); font-weight: 600; }
+.wizard-card { padding: 1.5rem; }
+.wizard-card h1 { margin-top: 0; }
+.wizard-overview, .wizard-pages, .wizard-discovered, .wizard-registered ul { list-style: none; padding: 0; }
+.wizard-overview li { padding: 0.35rem 0; }
+.wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.wizard-nav .actions { margin: 0; padding: 0; }
+.wizard-subhead { font-size: 1em; margin: 1.25rem 0 0.5rem; }
+.wizard-discovered li, .wizard-pages li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius);
+  margin-bottom: 0.5rem;
+}
+.wizard-page-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+/* Community CTA block on the onboarding wrap-up step and mirrored on
+   the Settings -> About card. Three tappable rows (Discussions,
+   Discord, Sponsor), each an icon + title + short blurb. Same visual
+   treatment on both surfaces so the pattern is recognisable. */
+.wizard-community {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--t-border);
+}
+.wizard-community .wizard-subhead { margin-top: 0; }
+.community-cta-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.community-cta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.9rem;
+  row-gap: 0.2rem;
+  align-items: baseline;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 120ms ease-out,
+    background 120ms ease-out;
+}
+.community-cta:hover {
+  border-color: var(--t-accent);
+  background: var(--t-surface);
+}
+.community-cta .ph {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  font-size: 1.3em;
+  align-self: center;
+  color: var(--t-accent);
+}
+.community-cta-title {
+  grid-row: 1;
+  grid-column: 2;
+  font-weight: 600;
+}
+.community-cta-sub {
+  grid-row: 2;
+  grid-column: 2;
+  font-size: 0.9em;
+  color: var(--t-fg-soft, var(--t-fg));
+  opacity: 0.75;
+}
+.wizard-registered ul li { padding: 0.2rem 0; }
+.wizard-manual { margin: 1rem 0; }
+.wizard-manual summary { cursor: pointer; color: var(--t-accent); margin-bottom: 0.5rem; }
+.wizard-hint { margin-top: 1rem; }
+.wizard-skip { text-align: center; margin-top: 1rem; }
+.wizard-broker-external[hidden] { display: none; }
+
+/* Wizard broker step: toggle between built-in (URL + creds) and external. */
+.wizard-broker-builtin[hidden], .wizard-broker-external[hidden] { display: none; }
+.wizard-broker-url { margin: 0.2rem 0 0.4rem; }
+.wizard-broker-url code { font-size: 1.05em; padding: 0.3rem 0.5rem; }
+
+/* ----- Check row -----------------------------------------------------
+   Full-width checkbox + label pair for "deliberate opt-in" choices -
+   originally lived in settings.css for the "discard local changes"
+   toggle; promoted here so the onboarding flow and other forms can
+   reuse it instead of inlining the same flex/gap pattern. */
+
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--t-space-2);
+  padding: var(--t-space-2) 0;
+  font-size: var(--t-size-sm);
+  color: var(--t-fg-soft);
+  cursor: pointer;
+}
+.check-row > input[type="checkbox"] {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+.check-row > span {
+  line-height: 1.5;
+}
+.check-row > span > .muted {
+  display: block;
+  font-size: var(--t-size-md);
+  margin-top: 2px;
+}
+
+/* ----- Wizard info card ----------------------------------------------
+   Used by the onboarding flow (and any other wizard that wants an
+   inline explanatory card between the form fields). card--compact
+   pads the block; --wizard-info gives it the vertical breathing
+   room the inline ``margin: var(--t-space-4) 0`` was supplying. */
+.card--wizard-info { margin: var(--t-space-4) 0; }
+.card--wizard-info-footnote { font-size: var(--t-size-sm); }
+
+/* ----- Variable picker (variables_textarea field type) ----------------
+   Click-to-insert chips that drop their placeholder text at the
+   textarea's cursor position. Sits beneath the textarea, grouped by
+   category. JS in static/variables-textarea.js handles the insert. */
+.field--variables-textarea .variables-picker {
+  margin-top: var(--t-space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--t-space-2);
+  padding: var(--t-space-2) var(--t-space-3);
+  background: var(--t-surface, var(--t-bg-soft, #f5f4ef));
+  border: 1px solid var(--t-border, rgba(0, 0, 0, 0.08));
+  border-radius: var(--t-radius-sm, 6px);
+}
+.variables-picker-group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--t-space-2);
+  flex-wrap: wrap;
+}
+.variables-picker-label {
+  font-size: var(--t-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--t-fg-soft, var(--text-muted));
+  flex: 0 0 auto;
+  min-width: 4.5em;
+}
+.variables-picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1 1 auto;
+}
+.variables-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--t-space-2);
+  font-family: var(--t-font-mono, ui-monospace, monospace);
+  font-size: var(--t-size-sm);
+  background: var(--t-bg, white);
+  border: 1px solid var(--t-border, rgba(0, 0, 0, 0.12));
+  border-radius: var(--t-radius-pill, 999px);
+  cursor: pointer;
+  color: var(--t-fg, inherit);
+  line-height: 1.3;
+  transition: background-color 0.1s ease;
+}
+.variables-picker-chip:hover {
+  background: var(--t-accent, #0d8c7e);
+  color: white;
+  border-color: var(--t-accent, #0d8c7e);
+}
+.variables-picker-chip:focus-visible {
+  outline: 2px solid var(--t-accent, #0d8c7e);
+  outline-offset: 1px;
+}
+.variables-picker-chip code {
+  background: transparent;
+  padding: 0;
+  font: inherit;
+}
+
+/* Onboarding transport-choice radio (v0.52 Phase 2). Two stacked cards
+   the user clicks to pick REST or MQTT. Mirrors the layout pattern of
+   the other wizard radios; no new design vocabulary. */
+.wizard-transport-choice {
+  border: none;
+  padding: 0;
+  margin: 0 0 var(--t-space-3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--t-space-2);
+}
+.transport-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--t-space-2);
+  padding: var(--t-space-3);
+  border: 1px solid var(--t-fg-soft, #d0d3da);
+  border-radius: var(--t-radius-sm);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.transport-radio:hover { background: color-mix(in srgb, var(--t-accent, #1c5cd6) 6%, transparent); }
+.transport-radio:has(input:checked) {
+  border-color: var(--t-accent, #1c5cd6);
+  background: color-mix(in srgb, var(--t-accent, #1c5cd6) 8%, transparent);
+}
+.transport-radio input[type="radio"] {
+  margin-top: 4px;
+  accent-color: var(--t-accent, #1c5cd6);
+}
+.transport-radio-body { display: flex; flex-direction: column; gap: 2px; }
+.transport-radio-body strong { font-size: 15px; }
+.transport-radio-body .muted { font-size: 13px; }
+.wizard-broker-mqtt-fields[hidden] { display: none; }
+
+/* ----- Location search -------------------------------------------------
+   Used by the ``location_search`` cell option type. Layout: positioned
+   search input with autocomplete dropdown floating beneath, plus a
+   "picked location" pill below the input that shows the resolved name
+   and coordinates when a location is set. The pill is intentionally
+   compact so the cell-options form doesn't gain a tall header just
+   for one option type. Static/components.js attaches the behaviour. */
+.field--location-search {
+  position: relative;
+  display: grid;
+  gap: var(--t-space-2);
+}
+.location-search-input {
+  display: flex;
+  align-items: center;
+  gap: var(--t-space-2);
+  border: 1px solid var(--t-border, #d0d3da);
+  border-radius: var(--t-radius-sm);
+  padding: 0 var(--t-space-3);
+  background: var(--t-surface, #fff);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.location-search-input:focus-within {
+  border-color: var(--t-accent, #1c5cd6);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--t-accent, #1c5cd6) 18%, transparent);
+}
+.location-search-input.is-set {
+  /* A subtle tint when a location is set so the user sees at a glance
+     that the search has a value, distinct from "empty + waiting for input". */
+  border-color: color-mix(in srgb, var(--t-accent, #1c5cd6) 40%, var(--t-border, #d0d3da));
+  background: color-mix(in srgb, var(--t-accent, #1c5cd6) 4%, var(--t-surface, #fff));
+}
+.location-search-icon {
+  color: var(--t-fg-muted, #6b7280);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.location-search-input.is-set .location-search-icon {
+  color: var(--t-accent, #1c5cd6);
+}
+.location-search-display {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  padding: 10px 0;
+  background: transparent;
+  font: inherit;
+  color: var(--t-fg, #1a1d23);
+}
+.location-search-display::placeholder {
+  color: var(--t-fg-muted, #9aa0aa);
+}
+.location-search-clear {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--t-fg-muted, #6b7280);
+  padding: 4px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.location-search-clear .ph { font-size: 12px; }
+.location-search-clear:hover {
+  background: color-mix(in srgb, var(--t-fg, #1a1d23) 8%, transparent);
+  color: var(--t-fg, #1a1d23);
+}
+.location-search-results {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  /* Sit just below the input, accounting for the 22px label that lives
+     above us inside the field wrapper. */
+  top: calc(1em + 4px + var(--t-space-2) + 42px);
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--t-surface, #fff);
+  border: 1px solid var(--t-border, #d0d3da);
+  border-radius: var(--t-radius-sm);
+  box-shadow: 0 12px 32px -10px color-mix(in srgb, black 22%, transparent);
+  max-height: 280px;
+  overflow-y: auto;
+}
+.location-search-result {
+  display: flex;
+  align-items: center;
+  gap: var(--t-space-2);
+  padding: 10px var(--t-space-3);
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--t-fg, #1a1d23);
+  border-bottom: 1px solid color-mix(in srgb, var(--t-border, #d0d3da) 40%, transparent);
+}
+.location-search-result:last-child { border-bottom: none; }
+.location-search-result:hover,
+.location-search-result:focus {
+  background: color-mix(in srgb, var(--t-accent, #1c5cd6) 8%, transparent);
+  outline: none;
+}
+.location-search-result .ph {
+  color: var(--t-accent, #1c5cd6);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.location-search-result-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.location-search-empty {
+  padding: var(--t-space-3);
+  font-size: 13px;
+  color: var(--t-fg-muted, #6b7280);
+  list-style: none;
+  margin: 0;
+}
+/* "Picked location" pill below the search. Compact two-line block:
+   city name + admin + country on top, coordinates underneath in a
+   monospace-y tabular feel. */
+.location-search-pill {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--t-accent, #1c5cd6) 6%, var(--t-surface-sunken, #f8f9fa));
+  border: 1px solid color-mix(in srgb, var(--t-accent, #1c5cd6) 18%, transparent);
+  border-radius: var(--t-radius-sm);
+}
+.location-search-pill-icon {
+  color: var(--t-accent, #1c5cd6);
+  font-size: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.location-search-pill-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.location-search-pill-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t-fg, #1a1d23);
+  line-height: 1.3;
+}
+.location-search-pill-coords {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--t-fg-muted, #6b7280);
+  font-family: var(--t-font-mono, ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace);
+  letter-spacing: 0.01em;
+}
