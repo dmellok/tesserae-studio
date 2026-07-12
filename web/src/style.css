@@ -1,0 +1,112 @@
+:root {
+  --bg: #f6f6f4;
+  --panel: #ffffff;
+  --line: #e2e2dd;
+  --ink: #1b1a16;
+  --muted: #6b6a63;
+  --accent: #8b5cf6;
+  --warn: #b8860b;
+  --err: #b00020;
+  --ok: #2e9e5b;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.brand { font-size: 15px; letter-spacing: 0.02em; }
+.brand b { color: var(--accent); }
+
+.conn { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.conn .dot { width: 9px; height: 9px; border-radius: 50%; background: #bbb; }
+.conn.ok .dot { background: var(--ok); }
+.conn.bad .dot { background: var(--err); }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: end;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.controls label.dim { width: 84px; }
+
+.controls select,
+.controls input {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+.controls input:disabled { background: #f1f1ee; color: var(--muted); }
+
+.stage { padding: 24px 16px; }
+
+.stage-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.tier {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background: var(--accent);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.badge { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* The mount stage. The .cell-frame is a neutral backdrop; the .cell inside is
+   sized to the chosen cell dimensions and carries container-type: size. */
+.cell-frame {
+  display: inline-block;
+  padding: 20px;
+  background:
+    linear-gradient(45deg, #eeeee9 25%, transparent 25%),
+    linear-gradient(-45deg, #eeeee9 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eeeee9 75%),
+    linear-gradient(-45deg, transparent 75%, #eeeee9 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.cell {
+  background: var(--panel);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.note { margin: 14px 0 0; font-size: 13px; color: var(--muted); min-height: 1.2em; }
+.note.warn { color: var(--warn); }
+.note.err { color: var(--err); }

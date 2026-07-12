@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Vite
+node_modules/
+web/dist/
+*.log
+
+# Env / local
+.env
+.env.local
+.DS_Store
+
+# Studio working dir (generated widgets live here in M1+)
+/widgets/
