@@ -19,6 +19,14 @@ import type { LintFinding, MineResult } from "./api";
 import { mountWidget } from "./mount";
 import { WidgetEditor, type OpenFile } from "./editor";
 import type { Config, FileEntry, Fragment, Widget } from "./types";
+import {
+  escapeHtml,
+  faithfulSize,
+  healthPills,
+  lintSummary,
+  mineDiffBits,
+  parseMembers,
+} from "./logic";
 import "./style.css";
 
 const PANEL = { w: 1200, h: 825 };
@@ -230,13 +238,9 @@ function setPill(id: string, textId: string, kind: "ok" | "warn" | "bad" | "", l
 async function refreshHealth() {
   try {
     const h = await getHealth();
-    if (h.mode === "disk") setPill("mode", "mode-text", "ok", "disk · standalone");
-    else if (h.mode === "live") setPill("mode", "mode-text", "ok", "live");
-    else setPill("mode", "mode-text", "bad", "no source");
-    if (h.tesserae !== "ok")
-      setPill("conn", "conn-text", h.mode === "disk" ? "warn" : "bad", "Tesserae offline");
-    else if (h.mcp === "off") setPill("conn", "conn-text", "warn", 'enable the "mcp" experiment');
-    else setPill("conn", "conn-text", "ok", h.live_data ? "live data + faithful" : "connected");
+    const { mode, conn } = healthPills(h);
+    setPill("mode", "mode-text", mode.kind, mode.label);
+    setPill("conn", "conn-text", conn.kind, conn.label);
     state.faithful = h.faithful;
     updateTierButtons();
   } catch {
@@ -276,16 +280,10 @@ function updateTierButtons() {
   tierFaithful.classList.toggle("active", state.tier === "faithful");
 }
 
-function faithfulSize(dims: { w: number; h: number }): string {
-  if (["xs", "sm", "md", "lg"].includes(state.sizeMode)) return state.sizeMode;
-  const longer = Math.max(dims.w, dims.h);
-  return longer <= 200 ? "xs" : longer <= 400 ? "sm" : longer <= 700 ? "md" : "lg";
-}
-
 function renderFaithful(dims: { w: number; h: number }) {
   setSourceChip("");
   frame.textContent = "";
-  const size = faithfulSize(dims);
+  const size = faithfulSize(state.sizeMode, dims);
   const img = document.createElement("img");
   img.className = "cell faithful-img";
   img.alt = `${state.widget!.key} faithful render`;
@@ -478,12 +476,7 @@ async function runMine() {
 }
 
 function renderMinePanel(res: MineResult) {
-  const d = res.diff;
-  const diffBits = [
-    d.added.length ? `+${d.added.length}` : "",
-    d.changed.length ? `~${d.changed.length}` : "",
-    d.removed.length ? `-${d.removed.length}` : "",
-  ].filter(Boolean).join(" ");
+  const diffBits = mineDiffBits(res.diff);
   const rows = res.fields
     .map(
       (f) =>
@@ -528,10 +521,6 @@ async function applyMine() {
 }
 
 // -- lint ------------------------------------------------------------------
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-}
-
 function openFile(path: string) {
   if (!editor.has(path)) return;
   state.activeFile = path;
@@ -558,16 +547,9 @@ async function runLint(widget: Widget) {
 function renderLint(findings: LintFinding[], errors: number, warnings: number) {
   lintPill.hidden = false;
   lintPill.classList.remove("ok", "warn", "bad");
-  if (errors) {
-    lintPill.classList.add("bad");
-    lintText.textContent = `${errors} error${errors > 1 ? "s" : ""}${warnings ? ` · ${warnings} warn` : ""}`;
-  } else if (warnings) {
-    lintPill.classList.add("warn");
-    lintText.textContent = `${warnings} warning${warnings > 1 ? "s" : ""}`;
-  } else {
-    lintPill.classList.add("ok");
-    lintText.textContent = "lint clean";
-  }
+  const summary = lintSummary(errors, warnings);
+  if (summary.kind) lintPill.classList.add(summary.kind);
+  lintText.textContent = summary.label;
   lintPanel.innerHTML =
     `<div class="lint-head"><i class="ph-bold ph-list-magnifying-glass"></i>` +
     `<span>${findings.length} finding${findings.length > 1 ? "s" : ""}</span></div>`;
@@ -761,8 +743,7 @@ $<HTMLButtonElement>("bd-cancel").addEventListener("click", () => bundleDialog.c
 $<HTMLFormElement>("bundle-form").addEventListener("submit", () => {
   const name = $<HTMLInputElement>("bd-name").value.trim();
   if (!name) return;
-  const members = $<HTMLTextAreaElement>("bd-members").value
-    .split("\n").map((s) => s.trim()).filter(Boolean).map((n) => ({ name: n }));
+  const members = parseMembers($<HTMLTextAreaElement>("bd-members").value);
   const admin = $<HTMLInputElement>("bd-admin").checked;
   void createBundle({ name, members: members.length ? members : [{ name: "Items" }], admin });
 });
