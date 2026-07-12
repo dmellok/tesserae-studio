@@ -28,6 +28,7 @@ interface State {
   w: number;
   h: number;
   dataCache: Map<string, unknown>;
+  sourceCache: Map<string, string>; // widget data source per render (live/sample/none)
   version: number; // mount cache-bust, bumped on save
   files: FileEntry[];
   activeFile?: string;
@@ -39,6 +40,7 @@ const state: State = {
   w: 640,
   h: 400,
   dataCache: new Map(),
+  sourceCache: new Map(),
   version: 0,
   files: [],
 };
@@ -113,6 +115,7 @@ app.innerHTML = `
       <div class="stage-head">
         <span class="tier">Interactive preview</span>
         <span class="badge" id="badge"></span>
+        <span class="src-chip" id="src" hidden></span>
       </div>
       <div class="cell-frame" id="frame"></div>
       <p class="note" id="note"></p>
@@ -190,20 +193,33 @@ function syncDimInputs(dims: { w: number; h: number }) {
   wInput.disabled = hInput.disabled = !custom;
 }
 
+function setSourceChip(source: "live" | "sample" | "none" | "") {
+  const chip = $<HTMLSpanElement>("src");
+  chip.hidden = !source;
+  chip.classList.remove("live", "sample", "none");
+  if (!source) return;
+  chip.classList.add(source);
+  chip.textContent =
+    source === "live" ? "live data" : source === "sample" ? "sample data" : "no data";
+}
+
 async function dataFor(widget: Widget): Promise<unknown> {
   // Invalidate cache when we may have edited the widget (version bumped).
   const cacheKey = `${widget.key}@${state.version}`;
-  if (state.dataCache.has(cacheKey)) return state.dataCache.get(cacheKey);
+  if (state.dataCache.has(cacheKey)) {
+    setSourceChip((state.sourceCache.get(cacheKey) as "live" | "sample" | "none") ?? "");
+    return state.dataCache.get(cacheKey);
+  }
   try {
     const res = await getWidgetData(widget.key);
     state.dataCache.set(cacheKey, res.data ?? null);
-    if (res.source === "sample")
-      setNote(`Previewing ${widget.key} with dev-gallery sample data (no live fetch).`, "");
-    else if (res.source === "none" && !widget.editable)
-      setNote(`No data for ${widget.key}; previewing its empty state.`, "warn");
+    state.sourceCache.set(cacheKey, res.source);
+    setSourceChip(res.source);
     return res.data ?? null;
   } catch {
     state.dataCache.set(cacheKey, null);
+    state.sourceCache.set(cacheKey, "none");
+    setSourceChip("none");
     return null;
   }
 }

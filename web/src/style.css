@@ -148,6 +148,13 @@
   border: 1px solid var(--t-accent-tint); padding: 3px 9px; border-radius: var(--t-radius-pill);
 }
 .badge { font-family: var(--t-font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-size-sm); color: var(--t-muted); }
+.src-chip {
+  font-size: var(--t-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 3px 8px; border-radius: var(--t-radius-pill); border: 1px solid transparent;
+}
+.src-chip.live { color: var(--t-pill-ok-fg); background: var(--t-pill-ok-bg); border-color: var(--t-pill-ok-border); }
+.src-chip.sample { color: var(--t-pill-warn-fg); background: var(--t-pill-warn-bg); border-color: var(--t-pill-warn-border); }
+.src-chip.none { color: var(--t-pill-neutral-fg); background: var(--t-pill-neutral-bg); }
 
 .cell-frame {
   display: inline-block; padding: var(--t-space-5);
