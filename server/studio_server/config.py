@@ -47,9 +47,14 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        repo_root = Path(__file__).resolve().parents[2]  # tesserae-studio/
         url = os.environ.get("STUDIO_TESSERAE_URL", "http://localhost:8765").rstrip("/")
         port = int(os.environ.get("STUDIO_PORT", "8770"))
-        workdir = Path(os.environ.get("STUDIO_WORKDIR", "../widgets")).expanduser()
+        # Widgets being authored live here. Defaults to the repo's tracked
+        # examples/ so the editor always has something to open; point it at a
+        # scratch dir for real authoring.
+        raw_workdir = os.environ.get("STUDIO_WORKDIR")
+        workdir = Path(raw_workdir).expanduser() if raw_workdir else repo_root / "examples"
 
         raw_path = os.environ.get("STUDIO_TESSERAE_PATH")
         if raw_path:

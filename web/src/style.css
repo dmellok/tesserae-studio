@@ -1,18 +1,16 @@
-/* Studio chrome, painted entirely from Tesserae's admin tokens (base.css) so
-   it matches the rest of the product. No hard-coded colours; swap --t-accent
-   and Studio retints with Tesserae. */
+/* Studio chrome, painted from Tesserae's admin tokens (base.css) so it matches
+   the product. No hard-coded colours; swap --t-accent and Studio retints. */
 
 #app {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 /* -- top bar (mirrors shell.css .topbar / .brand) ---------------------- */
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -22,107 +20,115 @@
   backdrop-filter: saturate(1.4) blur(12px);
   border-bottom: 1px solid var(--t-border);
 }
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--t-space-3);
-  font-weight: 700;
-  color: var(--t-fg);
-}
+.brand { display: flex; align-items: center; gap: var(--t-space-3); font-weight: 700; color: var(--t-fg); }
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--t-radius-sm);
-  background: var(--t-accent);
-  color: var(--t-accent-fg);
-  font-size: 16px;
-  box-shadow: var(--t-shadow-inset);
+  display: grid; place-items: center; width: 28px; height: 28px;
+  border-radius: var(--t-radius-sm); background: var(--t-accent);
+  color: var(--t-accent-fg); font-size: 16px; box-shadow: var(--t-shadow-inset);
 }
 .brand-name { font-size: var(--t-size-lg); letter-spacing: -0.01em; }
 .brand-name b { color: var(--t-accent); font-weight: 800; }
 
-/* -- status pills (mirrors the .dx-* status pills) --------------------- */
+/* -- status pills ------------------------------------------------------ */
 .pills { display: flex; align-items: center; gap: var(--t-space-2); }
 .pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--t-space-2);
-  padding: 4px 10px;
-  border-radius: var(--t-radius-pill);
-  font-size: var(--t-size-sm);
-  font-weight: 500;
-  border: 1px solid var(--t-pill-neutral-border, var(--t-border));
-  background: var(--t-pill-neutral-bg);
-  color: var(--t-pill-neutral-fg);
+  display: inline-flex; align-items: center; gap: var(--t-space-2);
+  padding: 4px 10px; border-radius: var(--t-radius-pill);
+  font-size: var(--t-size-sm); font-weight: 500;
+  border: 1px solid var(--t-border);
+  background: var(--t-pill-neutral-bg); color: var(--t-pill-neutral-fg);
 }
-.pill .dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: currentColor; opacity: 0.9;
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: 0.9; }
+.pill.ok { background: var(--t-pill-ok-bg); color: var(--t-pill-ok-fg); border-color: var(--t-pill-ok-border); }
+.pill.warn { background: var(--t-pill-warn-bg); color: var(--t-pill-warn-fg); border-color: var(--t-pill-warn-border); }
+.pill.bad { background: var(--t-pill-danger-bg); color: var(--t-pill-danger-fg); border-color: var(--t-pill-danger-border); }
+
+/* -- toolbar (widget / fragment / size) -------------------------------- */
+.toolbar {
+  flex: none;
+  display: flex; flex-wrap: wrap; gap: var(--t-space-4); align-items: end;
+  padding: var(--t-space-3) var(--t-space-5);
+  border-bottom: 1px solid var(--t-border); background: var(--t-surface);
 }
-.pill.ok {
-  background: var(--t-pill-ok-bg); color: var(--t-pill-ok-fg);
-  border-color: var(--t-pill-ok-border);
+.toolbar .field { margin: 0; gap: 6px; }
+.toolbar .field.dim { width: 88px; }
+
+/* -- workbench: editor | preview --------------------------------------- */
+.workbench { flex: 1; min-height: 0; display: flex; }
+.editor-pane {
+  flex: 1 1 50%; min-width: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--t-border); background: var(--t-surface);
 }
-.pill.warn {
-  background: var(--t-pill-warn-bg); color: var(--t-pill-warn-fg);
-  border-color: var(--t-pill-warn-border);
-}
-.pill.bad {
-  background: var(--t-pill-danger-bg); color: var(--t-pill-danger-fg);
-  border-color: var(--t-pill-danger-border);
+.preview-pane {
+  flex: 1 1 50%; min-width: 0; overflow: auto;
+  padding: var(--t-space-6) var(--t-space-5);
+  background: var(--t-bg);
 }
 
-/* -- control toolbar --------------------------------------------------- */
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--t-space-4);
-  align-items: end;
-  padding: var(--t-space-4) var(--t-space-5);
+.pane-head {
+  flex: none; display: flex; align-items: center; gap: var(--t-space-3);
+  padding: var(--t-space-3) var(--t-space-4);
   border-bottom: 1px solid var(--t-border);
-  background: var(--t-surface);
 }
-.controls .field { margin: 0; gap: 6px; }
-.controls .field.dim { width: 88px; }
+.pane-title { font-weight: 600; font-size: var(--t-size-md); }
+.pane-sub { font-family: var(--t-font-mono); font-size: var(--t-size-sm); color: var(--t-muted); }
+.pane-head .btn { margin-left: auto; }
+
+.btn {
+  font: inherit; font-size: var(--t-size-sm); font-weight: 500;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: var(--t-radius-sm);
+  border: 1px solid var(--t-accent); background: var(--t-accent); color: var(--t-accent-fg);
+  cursor: pointer; transition: var(--t-trans);
+}
+.btn:hover:not(:disabled) { background: var(--t-accent-hover); border-color: var(--t-accent-hover); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn kbd {
+  font-family: var(--t-font-mono); font-size: 10px;
+  padding: 1px 4px; border-radius: 4px;
+  background: color-mix(in oklab, var(--t-accent-fg) 22%, transparent);
+}
+
+/* -- file tabs --------------------------------------------------------- */
+.tabs {
+  flex: none; display: flex; gap: 2px; overflow-x: auto;
+  padding: 0 var(--t-space-2); background: var(--t-surface-sunk);
+  border-bottom: 1px solid var(--t-border);
+}
+.tab {
+  font: inherit; font-family: var(--t-font-mono); font-size: var(--t-size-sm);
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border: none; background: transparent; cursor: pointer;
+  color: var(--t-muted); border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.tab:hover { color: var(--t-fg); }
+.tab.active { color: var(--t-fg); border-bottom-color: var(--t-accent); background: var(--t-surface); }
+.tab-dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--t-accent); }
+
+.editor-wrap { flex: 1; min-height: 0; position: relative; }
+.monaco { position: absolute; inset: 0; }
+.editor-empty {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  padding: var(--t-space-7); text-align: center;
+  color: var(--t-muted); font-size: var(--t-size-md); background: var(--t-surface);
+}
+/* The [hidden] attribute's UA display:none loses to the class's display:grid,
+   so hide it explicitly or the overlay covers the editor. */
+.editor-empty[hidden] { display: none; }
 
 /* -- preview stage ----------------------------------------------------- */
-.stage { padding: var(--t-space-6) var(--t-space-5); }
-.stage-head {
-  display: flex;
-  align-items: center;
-  gap: var(--t-space-3);
-  margin-bottom: var(--t-space-4);
-}
+.stage-head { display: flex; align-items: center; gap: var(--t-space-3); margin-bottom: var(--t-space-4); }
 .tier {
-  font-size: var(--t-size-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  color: var(--t-accent-ink);
-  background: var(--t-accent-soft);
-  border: 1px solid var(--t-accent-tint);
-  padding: 3px 9px;
-  border-radius: var(--t-radius-pill);
+  font-size: var(--t-size-xs); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+  color: var(--t-accent-ink); background: var(--t-accent-soft);
+  border: 1px solid var(--t-accent-tint); padding: 3px 9px; border-radius: var(--t-radius-pill);
 }
-.badge {
-  font-family: var(--t-font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--t-size-sm);
-  color: var(--t-muted);
-}
+.badge { font-family: var(--t-font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-size-sm); color: var(--t-muted); }
 
-/* Checkerboard backdrop drawn from the border token so the cell edge reads
-   against it without a hard rule. The .cell inside is the actual widget box. */
 .cell-frame {
-  display: inline-block;
-  padding: var(--t-space-5);
-  border: 1px solid var(--t-border);
-  border-radius: var(--t-radius-lg);
-  box-shadow: var(--t-shadow-md);
-  background-color: var(--t-surface-sunk);
+  display: inline-block; padding: var(--t-space-5);
+  border: 1px solid var(--t-border); border-radius: var(--t-radius-lg);
+  box-shadow: var(--t-shadow-md); background-color: var(--t-surface-sunk);
   background-image:
     linear-gradient(45deg, var(--t-border) 25%, transparent 25%),
     linear-gradient(-45deg, var(--t-border) 25%, transparent 25%),
@@ -131,18 +137,8 @@
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
-.cell {
-  background: var(--t-surface);
-  border-radius: var(--t-radius-sm);
-  box-shadow: var(--t-shadow-sm), var(--t-shadow-inset);
-  overflow: hidden;
-}
+.cell { background: var(--t-surface); border-radius: var(--t-radius-sm); box-shadow: var(--t-shadow-sm), var(--t-shadow-inset); overflow: hidden; }
 
-.note {
-  margin: var(--t-space-4) 0 0;
-  font-size: var(--t-size-md);
-  color: var(--t-muted);
-  min-height: 1.2em;
-}
+.note { margin: var(--t-space-4) 0 0; font-size: var(--t-size-md); color: var(--t-muted); min-height: 1.2em; }
 .note.warn { color: var(--t-warn); }
 .note.err { color: var(--t-danger); }

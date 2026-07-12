@@ -1,0 +1,18 @@
+{
+  "tesserae_compat": "1.x",
+  "name": "Hello Stat",
+  "version": "0.1.0",
+  "kind": "widget",
+  "description": "A minimal fragment-first stat widget: the starting point for Studio's editor.",
+  "icon": "ph-sparkle",
+  "supports": { "sizes": ["xs", "sm", "md", "lg"] },
+  "cell_options": [
+    { "name": "label", "type": "string", "label": "Label", "default": "Widgets shipped" },
+    { "name": "value", "type": "number", "label": "Value", "default": 42 },
+    { "name": "caption", "type": "string", "label": "Caption", "default": "this week" }
+  ],
+  "fragments": [
+    { "id": "value", "label": "Value", "icon": "ph-number-square-four", "w": 180, "h": 180 },
+    { "id": "label", "label": "Label", "icon": "ph-textbox", "w": 260, "h": 120 }
+  ]
+}

@@ -15,6 +15,15 @@ export interface Widget {
   icon: string;
   desc: string;
   fragments: Fragment[];
+  editable?: boolean; // true for widgets in the workspace
+  origin?: string; // "workspace" | "disk" | "live" | ...
+}
+
+export interface FileEntry {
+  path: string;
+  size: number;
+  editable: boolean;
+  language: string;
 }
 
 export interface Catalog {

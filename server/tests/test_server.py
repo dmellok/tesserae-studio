@@ -139,6 +139,84 @@ def test_disk_widget_data_falls_back_to_none(disk_client):
     assert body["source"] == "none"
 
 
+# -- workspace (M1) ---------------------------------------------------------
+@pytest.fixture
+def ws_client(tmp_path):
+    """A workspace with one editable widget, no tesserae source."""
+    wdir = tmp_path / "work"
+    widget = wdir / "mywidget"
+    (widget / "static").mkdir(parents=True)
+    widget.joinpath("client.js").write_text("export default () => {}")
+    widget.joinpath("plugin.json").write_text(
+        json.dumps({"kind": "widget", "name": "Mine", "icon": "ph-star", "fragments": []})
+    )
+    settings = Settings(
+        tesserae_url="http://tess.test", port=8770, workdir=wdir, tesserae_path=None
+    )
+    c = _make_client(settings)
+    c.app.state.tesserae.raw._transport = httpx.MockTransport(
+        lambda req: httpx.Response(404)
+    )
+    yield c
+    c.__exit__(None, None, None)
+
+
+def test_workspace_widget_in_catalog_editable(ws_client):
+    widgets = ws_client.get("/studio/api/catalog").json()["widgets"]
+    mine = [w for w in widgets if w["key"] == "mywidget"]
+    assert mine and mine[0]["editable"] is True
+    assert mine[0]["origin"] == "workspace"
+
+
+def test_workspace_list_files(ws_client):
+    files = ws_client.get("/studio/api/files/mywidget").json()["files"]
+    paths = {f["path"]: f for f in files}
+    assert "client.js" in paths and paths["client.js"]["language"] == "javascript"
+    assert paths["plugin.json"]["language"] == "json"
+
+
+def test_workspace_read_write_roundtrip(ws_client):
+    r = ws_client.put(
+        "/studio/api/files/mywidget/client.js",
+        json={"content": "export default (s) => { s.innerHTML = 'hi'; }"},
+    )
+    assert r.json()["ok"] is True
+    back = ws_client.get("/studio/api/files/mywidget/client.js").json()
+    assert "s.innerHTML" in back["content"]
+
+
+def test_workspace_asset_shadows_plugin(ws_client):
+    ws_client.put(
+        "/studio/api/files/mywidget/client.js",
+        json={"content": "// edited body"},
+    )
+    resp = ws_client.get("/plugins/mywidget/client.js")
+    assert resp.status_code == 200
+    assert "// edited body" in resp.text
+
+
+def test_workspace_path_traversal_blocked(ws_client):
+    # The HTTP client normalises ../ in the URL, so the router rejects it before
+    # our guard; either way nothing is written outside the workdir.
+    r = ws_client.put(
+        "/studio/api/files/mywidget/../escape.txt", json={"content": "nope"}
+    )
+    assert r.status_code in (400, 404, 405)
+    assert not (ws_client.app.state.settings.workdir / "escape.txt").exists()
+
+
+def test_workspace_guard_rejects_escape(tmp_path):
+    from studio_server.workspace import Workspace, WorkspaceError
+
+    ws = Workspace(tmp_path)
+    (tmp_path / "w").mkdir()
+    (tmp_path / "w" / "plugin.json").write_text("{}")
+    with pytest.raises(WorkspaceError):
+        ws.write_file("w", "../../evil.txt", "x")
+    with pytest.raises(WorkspaceError):
+        ws.read_file("../..", "etc/passwd")
+
+
 # -- unit -------------------------------------------------------------------
 def test_config_exposes_sizes(live_client):
     body = live_client.get("/studio/api/config").json()

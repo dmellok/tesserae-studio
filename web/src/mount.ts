@@ -27,6 +27,9 @@ export interface MountSpec {
   options: Record<string, unknown>;
   data: unknown;
   fontFamily?: string;
+  // Bumped on save so the dynamic import re-fetches the edited client.js instead
+  // of returning the module cached under the same URL.
+  version?: number;
 }
 
 const DEFAULT_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -71,8 +74,10 @@ export async function mountWidget(host: HTMLElement, spec: MountSpec): Promise<v
 
   try {
     // Runtime variable URL, so Vite leaves it as a native dynamic import to the
-    // proxied same-origin path. Cache-bust so re-mounts after an edit reload.
-    const url = `/plugins/${encodeURIComponent(spec.pluginId)}/client.js`;
+    // proxied same-origin path. The version query busts the module cache so a
+    // re-mount after saving loads the edited client.js.
+    const v = spec.version ? `?v=${spec.version}` : "";
+    const url = `/plugins/${encodeURIComponent(spec.pluginId)}/client.js${v}`;
     const mod = await import(/* @vite-ignore */ url);
     if (typeof mod.default !== "function") {
       throw new Error("plugin module has no default export");

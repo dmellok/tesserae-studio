@@ -11,6 +11,12 @@ mission and milestones, `docs/architecture.md` for the resolved design, and
 
 ## Status
 
+**M1 (Editor):** a Monaco multi-file editor over a working directory, side by side with the
+live preview. Open a widget's `plugin.json` (validated live against Tesserae's
+`plugin.schema.json`), `client.js`, and `server.py`; edit and save (⌘/Ctrl+S) and the
+preview re-mounts the widget immediately. Widgets in the workspace are editable and shadow
+the read-only tesserae catalog. Ships an example widget (`examples/hello_stat`).
+
 **M0 (Scaffold & connect):** thin FastAPI server plus a Vite + TypeScript front end that
 mounts any installed widget (whole widget or a single fragment) in an interactive
 shadow-root preview at any cell size. Studio reuses Tesserae's admin design system
@@ -58,7 +64,10 @@ Tesserae. Pick a widget, a fragment, and a size to preview it.
 | `STUDIO_TESSERAE_PATH` | autodetect `../tesserae` | Disk checkout for assets + catalog (standalone) |
 | `STUDIO_TESSERAE_URL`  | `http://localhost:8765`  | Live Tesserae for data + faithful render     |
 | `STUDIO_PORT`          | `8770`                   | Thin server port                             |
-| `STUDIO_WORKDIR`       | `../widgets`             | Widget working dir (M1+)                     |
+| `STUDIO_WORKDIR`       | `<repo>/examples`        | Working dir of widgets being authored        |
+
+The default workdir is the tracked `examples/` so the editor always has something to open;
+point `STUDIO_WORKDIR` at a scratch directory for real authoring.
 
 ## Tests
 

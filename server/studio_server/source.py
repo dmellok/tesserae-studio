@@ -45,6 +45,18 @@ def _safe_join(root: Path, rel: str) -> Path | None:
     return None
 
 
+def catalog_entry(key: str, manifest: dict[str, Any]) -> dict[str, Any]:
+    """A catalog entry from a widget id + manifest. Shared by the disk catalog
+    and the workspace so both surface widgets identically to the front end."""
+    return {
+        "key": key,
+        "name": str(manifest.get("name") or key),
+        "icon": str(manifest.get("icon") or "ph-puzzle-piece"),
+        "desc": str(manifest.get("description") or ""),
+        "fragments": _fragments_of(manifest),
+    }
+
+
 def _fragments_of(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     """The widget's declared fragments, always including ``full``. Mirrors
     Tesserae's fragments_of so disk paths match the canvas."""
@@ -128,16 +140,7 @@ class TesseraeSource:
                 continue
             if manifest.get("kind") != "widget":
                 continue
-            key = widget_dir.name
-            entries.append(
-                {
-                    "key": key,
-                    "name": str(manifest.get("name") or key),
-                    "icon": str(manifest.get("icon") or "ph-puzzle-piece"),
-                    "desc": str(manifest.get("description") or ""),
-                    "fragments": _fragments_of(manifest),
-                }
-            )
+            entries.append(catalog_entry(widget_dir.name, manifest))
         entries.sort(key=lambda e: str(e["name"]).lower())
         return entries
 

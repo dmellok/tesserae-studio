@@ -10,6 +10,8 @@ venv/
 # Node / Vite
 node_modules/
 web/dist/
+# tsc typechecks only (noEmit); guard against stray compiled output in src/
+web/src/*.js
 *.log
 
 # Env / local
