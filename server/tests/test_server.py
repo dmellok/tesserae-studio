@@ -142,6 +142,15 @@ def test_bundled_assets_serve_offline(live_client):
         assert ctype in resp.headers["content-type"], f"{path} type {resp.headers['content-type']}"
 
 
+def test_plugin_schema_from_bundle_without_checkout(live_client):
+    """The manifest schema is served from Studio's bundled copy when there is no
+    disk checkout, so editor/linter validation works live-only."""
+    resp = live_client.get("/studio/api/schema/plugin")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body.get("type") == "object" or "properties" in body
+
+
 # -- disk mode (standalone) -------------------------------------------------
 def test_disk_health_no_live(disk_client):
     body = disk_client.get("/studio/api/health").json()

@@ -397,10 +397,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def _load_schema() -> dict | None:
         import json
 
+        # A live/disk checkout's schema wins (it matches that Tesserae's version);
+        # otherwise fall back to Studio's bundled copy so validation works with no
+        # checkout at all.
         path = settings.tesserae_path
-        schema_file = (path / "schema" / "plugin.schema.json") if path else None
-        if schema_file and schema_file.is_file():
-            return json.loads(schema_file.read_text())
+        candidates = []
+        if path:
+            candidates.append(path / "schema" / "plugin.schema.json")
+        candidates.append(
+            Path(__file__).resolve().parent / "assets" / "schema" / "plugin.schema.json"
+        )
+        for schema_file in candidates:
+            if schema_file.is_file():
+                return json.loads(schema_file.read_text())
         return None
 
     @app.get("/studio/api/schema/plugin")
@@ -408,7 +417,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         schema = _load_schema()
         if schema is not None:
             return JSONResponse(schema)
-        return JSONResponse({"error": "plugin.schema.json unavailable (no disk checkout)"}, 404)
+        return JSONResponse({"error": "plugin.schema.json unavailable"}, 404)
 
     # ---- mine_data_schema (canvas-bindable fields from real data) --------
     async def _gather_fields(widget: str, manifest: dict, options: dict, source: str):
