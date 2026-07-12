@@ -60,28 +60,35 @@ app.innerHTML = `
       <span class="brand-mark"><i class="ph-bold ph-squares-four"></i></span>
       <span class="brand-name">Tesserae <b>Studio</b></span>
     </div>
-    <div class="pills">
-      <span class="pill" id="mode"><span class="dot"></span><span id="mode-text">·</span></span>
-      <span class="pill" id="conn"><span class="dot"></span><span id="conn-text">connecting…</span></span>
+    <div class="topbar-right">
+      <div class="pills">
+        <span class="pill" id="mode"><span class="dot"></span><span id="mode-text">·</span></span>
+        <span class="pill" id="conn"><span class="dot"></span><span id="conn-text">connecting…</span></span>
+      </div>
+      <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle light / dark theme"><i class="ph-bold ph-moon"></i></button>
     </div>
   </header>
   <div class="toolbar">
-    <div class="field"><label for="widget">Widget</label><select id="widget"></select></div>
-    <div class="field"><label for="fragment">Fragment</label><select id="fragment"></select></div>
-    <div class="field"><label for="size">Size</label>
-      <select id="size">
-        <option value="xs">xs (180×180)</option>
-        <option value="sm">sm (380×240)</option>
-        <option value="md" selected>md (640×400)</option>
-        <option value="lg">lg (1200×800)</option>
-        <option value="fragment">fragment size</option>
-        <option value="custom">custom…</option>
-      </select>
+    <div class="tool-fields">
+      <div class="field"><label for="widget">Widget</label><select id="widget"></select></div>
+      <div class="field"><label for="fragment">Fragment</label><select id="fragment"></select></div>
+      <div class="field"><label for="size">Size</label>
+        <select id="size">
+          <option value="xs">xs (180×180)</option>
+          <option value="sm">sm (380×240)</option>
+          <option value="md" selected>md (640×400)</option>
+          <option value="lg">lg (1200×800)</option>
+          <option value="fragment">fragment size</option>
+          <option value="custom">custom…</option>
+        </select>
+      </div>
+      <div class="field dim"><label for="w">Width</label><input id="w" type="number" min="20" max="2000" value="640" /></div>
+      <div class="field dim"><label for="h">Height</label><input id="h" type="number" min="20" max="2000" value="400" /></div>
     </div>
-    <div class="field dim"><label for="w">Width</label><input id="w" type="number" min="20" max="2000" value="640" /></div>
-    <div class="field dim"><label for="h">Height</label><input id="h" type="number" min="20" max="2000" value="400" /></div>
-    <button class="btn ghost" id="new-widget"><i class="ph-bold ph-plus"></i> New widget</button>
-    <button class="btn ghost" id="new-bundle"><i class="ph-bold ph-stack"></i> New bundle</button>
+    <div class="tool-actions">
+      <button class="btn ghost" id="new-widget"><i class="ph-bold ph-plus"></i> New widget</button>
+      <button class="btn ghost" id="new-bundle"><i class="ph-bold ph-stack"></i> New bundle</button>
+    </div>
   </div>
   <dialog id="bundle-dialog" class="dialog">
     <form method="dialog" id="bundle-form">
@@ -123,12 +130,18 @@ app.innerHTML = `
   <div class="workbench">
     <section class="editor-pane">
       <div class="pane-head">
-        <span class="pane-title" id="editor-widget">—</span>
-        <span class="pane-sub" id="editor-sub"></span>
-        <button class="pill register" id="register-btn" hidden><span class="dot"></span><span id="register-text"></span></button>
-        <button class="pill mine" id="mine-btn" hidden><i class="ph-bold ph-magic-wand"></i> Mine schema</button>
-        <button class="pill" id="lint-pill" hidden><span class="dot"></span><span id="lint-text"></span></button>
-        <button class="btn" id="save" disabled>Save <kbd>⌘S</kbd></button>
+        <div class="pane-id">
+          <span class="pane-title" id="editor-widget">—</span>
+          <span class="pane-sub" id="editor-sub"></span>
+        </div>
+        <div class="pane-status">
+          <button class="pill register" id="register-btn" hidden><span class="dot"></span><span id="register-text"></span></button>
+          <button class="pill" id="lint-pill" hidden><span class="dot"></span><span id="lint-text"></span></button>
+        </div>
+        <div class="pane-actions">
+          <button class="btn ghost" id="mine-btn" hidden><i class="ph-bold ph-magic-wand"></i> Mine schema</button>
+          <button class="btn" id="save" disabled>Save <kbd>⌘S</kbd></button>
+        </div>
       </div>
       <div class="tabs" id="tabs"></div>
       <div class="editor-wrap">
@@ -154,6 +167,22 @@ app.innerHTML = `
 `;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+// -- theme (light / dark), same switch Tesserae's admin uses ---------------
+const themeToggle = $<HTMLButtonElement>("theme-toggle");
+function applyTheme(theme: "light" | "dark") {
+  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "";
+  themeToggle.innerHTML = `<i class="ph-bold ph-${theme === "dark" ? "sun" : "moon"}"></i>`;
+  themeToggle.title = theme === "dark" ? "Switch to light" : "Switch to dark";
+}
+applyTheme((localStorage.getItem("studio-theme") as "light" | "dark") ?? "light");
+themeToggle.addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  localStorage.setItem("studio-theme", next);
+  applyTheme(next);
+  editor.setTheme(next === "dark"); // editor exists by click time
+});
+
 const widgetSel = $<HTMLSelectElement>("widget");
 const fragmentSel = $<HTMLSelectElement>("fragment");
 const sizeSel = $<HTMLSelectElement>("size");
@@ -332,15 +361,19 @@ async function render() {
 
   // Companion plugins (a bundle's _core, kind data) don't render as widgets.
   if (!isWidgetKind(state.widget)) {
-    frame.textContent = "";
     setSourceChip("");
     badge.textContent = state.widget.kind ?? "companion";
-    setNote(
-      `${state.widget.name} is a companion plugin (${state.widget.kind}). It has no widget render; configure it on its admin page in Tesserae, and register it so member widgets can read it.`,
-      "",
-    );
+    frame.classList.add("is-empty");
+    frame.innerHTML = `
+      <div class="empty-state">
+        <i class="empty-ico ph-bold ph-plugs-connected"></i>
+        <p class="empty-title">${escapeHtml(state.widget.name)} is a companion plugin</p>
+        <p class="empty-text">Companions have no widget render. Configure it on its admin page in Tesserae, and register it so member widgets can read it.</p>
+      </div>`;
+    setNote(`Companion plugin (${state.widget.kind}) · configure on its admin page in Tesserae.`, "");
     return;
   }
+  frame.classList.remove("is-empty");
 
   const dims = resolveDims();
   syncDimInputs(dims);
@@ -535,7 +568,9 @@ function renderLint(findings: LintFinding[], errors: number, warnings: number) {
     lintPill.classList.add("ok");
     lintText.textContent = "lint clean";
   }
-  lintPanel.innerHTML = "";
+  lintPanel.innerHTML =
+    `<div class="lint-head"><i class="ph-bold ph-list-magnifying-glass"></i>` +
+    `<span>${findings.length} finding${findings.length > 1 ? "s" : ""}</span></div>`;
   for (const f of findings) {
     const row = document.createElement("button");
     row.className = `lint-row ${f.level}`;
@@ -582,8 +617,10 @@ async function loadEditor(widget: Widget) {
     saveBtn.disabled = true;
     emptyEl.hidden = false;
     emptyEl.innerHTML = `
-      <div>
-        <p>${widget.name} is a read-only reference widget (not in your workspace).</p>
+      <div class="empty-state">
+        <i class="empty-ico ph-bold ph-book-open-text"></i>
+        <p class="empty-title">${escapeHtml(widget.name)} is a reference widget</p>
+        <p class="empty-text">Read-only — it lives outside your workspace. Duplicate it to edit and preview your own copy.</p>
         <button class="btn" id="dup-btn"><i class="ph-bold ph-copy"></i> Duplicate to workspace</button>
       </div>`;
     emptyEl.querySelector("#dup-btn")?.addEventListener("click", () => void duplicate(widget));

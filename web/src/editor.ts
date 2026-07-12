@@ -38,6 +38,29 @@ monaco.editor.defineTheme("tesserae", {
   },
 });
 
+// Dark editor theme, mirroring Tesserae's base.css :root[data-theme="dark"]
+// token values (Monaco themes take hex, not CSS vars, same as the light theme).
+monaco.editor.defineTheme("tesserae-dark", {
+  base: "vs-dark",
+  inherit: true,
+  rules: [],
+  colors: {
+    "editor.background": "#181b22", // --t-surface
+    "editorGutter.background": "#13161c", // --t-surface-sunk
+    "editorLineNumber.foreground": "#8b93a1", // --t-muted
+    "editorLineNumber.activeForeground": "#b6bcc7", // --t-fg-soft
+    "editor.foreground": "#e7e9ee", // --t-fg
+    "editor.selectionBackground": "#143029", // --t-accent-tint
+    "editor.lineHighlightBackground": "#1f232b", // --t-surface-soft
+    "editorIndentGuide.background1": "#2a2f38", // --t-border
+    "focusBorder": "#2dd4bf", // --t-accent
+  },
+});
+
+function editorThemeName(): string {
+  return document.documentElement.dataset.theme === "dark" ? "tesserae-dark" : "tesserae";
+}
+
 export interface OpenFile {
   path: string;
   content: string;
@@ -54,7 +77,7 @@ export class WidgetEditor {
 
   constructor(container: HTMLElement) {
     this.editor = monaco.editor.create(container, {
-      theme: "tesserae",
+      theme: editorThemeName(),
       automaticLayout: true,
       fontSize: 13,
       fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -72,6 +95,10 @@ export class WidgetEditor {
 
   onSaveRequest(cb: () => void) {
     this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, cb);
+  }
+
+  setTheme(dark: boolean) {
+    monaco.editor.setTheme(dark ? "tesserae-dark" : "tesserae");
   }
 
   setSchema(schema: object | null) {
