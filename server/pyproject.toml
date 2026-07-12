@@ -3,6 +3,7 @@ name = "tesserae-studio-server"
 version = "0.1.0"
 description = "Thin local server for tesserae-studio: reverse-proxies a running Tesserae and hosts Studio's own API."
 requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.29",
