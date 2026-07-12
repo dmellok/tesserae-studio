@@ -7,11 +7,6 @@ async function getJson(url, init) {
 export const getHealth = () => getJson("/studio/api/health");
 export const getConfig = () => getJson("/studio/api/config");
 export const getCatalog = () => getJson("/studio/api/catalog");
-// Live fetch() output for a widget, feeding ctx.data. Options default to the
-// manifest defaults server-side when omitted. Reuses Tesserae's flattener, the
-// same endpoint mine_data_schema will read in M2.
-export const getWidgetData = (key, options = {}) => getJson(`/api/mcp/widgets/${encodeURIComponent(key)}/data`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ options }),
-});
+// ctx.data for the preview. Studio resolves the source: a live fetch() through
+// the connected Tesserae, or the dev-gallery sample from the disk checkout.
+export const getWidgetData = (key) => getJson(`/studio/api/widgets/${encodeURIComponent(key)}/data`);

@@ -30,17 +30,26 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = `
   <header class="topbar">
-    <div class="brand">Tesserae <b>Studio</b></div>
-    <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">connecting…</span></div>
+    <div class="brand">
+      <span class="brand-mark"><i class="ph-bold ph-squares-four"></i></span>
+      <span class="brand-name">Tesserae <b>Studio</b></span>
+    </div>
+    <div class="pills">
+      <span class="pill" id="mode"><span class="dot"></span><span id="mode-text">·</span></span>
+      <span class="pill" id="conn"><span class="dot"></span><span id="conn-text">connecting…</span></span>
+    </div>
   </header>
   <div class="controls">
-    <label>Widget
+    <div class="field">
+      <label for="widget">Widget</label>
       <select id="widget"></select>
-    </label>
-    <label>Fragment
+    </div>
+    <div class="field">
+      <label for="fragment">Fragment</label>
       <select id="fragment"></select>
-    </label>
-    <label>Size
+    </div>
+    <div class="field">
+      <label for="size">Size</label>
       <select id="size">
         <option value="xs">xs (180×180)</option>
         <option value="sm">sm (380×240)</option>
@@ -49,9 +58,15 @@ app.innerHTML = `
         <option value="fragment">fragment size</option>
         <option value="custom">custom…</option>
       </select>
-    </label>
-    <label class="dim">W <input id="w" type="number" min="20" max="2000" value="640" /></label>
-    <label class="dim">H <input id="h" type="number" min="20" max="2000" value="400" /></label>
+    </div>
+    <div class="field dim">
+      <label for="w">Width</label>
+      <input id="w" type="number" min="20" max="2000" value="640" />
+    </div>
+    <div class="field dim">
+      <label for="h">Height</label>
+      <input id="h" type="number" min="20" max="2000" value="400" />
+    </div>
   </div>
   <main class="stage">
     <div class="stage-head">
@@ -78,22 +93,29 @@ function setNote(msg: string, kind: "" | "warn" | "err" = "") {
   note.className = `note ${kind}`;
 }
 
+function setPill(id: string, textId: string, kind: "ok" | "warn" | "bad" | "", label: string) {
+  const pill = $<HTMLSpanElement>(id);
+  pill.classList.remove("ok", "warn", "bad");
+  if (kind) pill.classList.add(kind);
+  $<HTMLSpanElement>(textId).textContent = label;
+}
+
 async function refreshHealth() {
-  const conn = $<HTMLDivElement>("conn");
-  const text = $<HTMLSpanElement>("conn-text");
   try {
     const h = await getHealth();
-    const up = h.tesserae === "ok";
-    const ready = up && h.mcp === "ok";
-    conn.classList.toggle("ok", ready);
-    conn.classList.toggle("bad", !ready);
-    if (!up) text.textContent = `Tesserae unreachable (${h.url})`;
+    // Mode pill: where assets + catalog come from.
+    if (h.mode === "disk") setPill("mode", "mode-text", "ok", "disk · standalone");
+    else if (h.mode === "live") setPill("mode", "mode-text", "ok", "live");
+    else setPill("mode", "mode-text", "bad", "no source");
+
+    // Connection pill: the live instance, needed only for live data + faithful.
+    if (h.tesserae !== "ok")
+      setPill("conn", "conn-text", h.mode === "disk" ? "warn" : "bad", "Tesserae offline");
     else if (h.mcp === "off")
-      text.textContent = `Tesserae up, enable the "mcp" experiment (Settings → System → MCP)`;
-    else text.textContent = `Tesserae ${h.url}`;
+      setPill("conn", "conn-text", "warn", 'enable the "mcp" experiment');
+    else setPill("conn", "conn-text", "ok", h.live_data ? "live data + faithful" : "connected");
   } catch {
-    conn.classList.add("bad");
-    text.textContent = "studio server unreachable";
+    setPill("conn", "conn-text", "bad", "studio server unreachable");
   }
 }
 
@@ -120,13 +142,14 @@ async function dataFor(widget: Widget): Promise<unknown> {
   try {
     const res = await getWidgetData(widget.key);
     state.dataCache.set(widget.key, res.data ?? null);
-    if (res.data_source === "error") {
-      setNote(`Widget returned no live data (${widget.key}); previewing with null data.`, "warn");
-    }
+    if (res.source === "sample")
+      setNote(`Previewing ${widget.key} with dev-gallery sample data (no live fetch).`, "");
+    else if (res.source === "none")
+      setNote(`No data for ${widget.key}; previewing its empty state.`, "warn");
     return res.data ?? null;
-  } catch (err) {
+  } catch {
     state.dataCache.set(widget.key, null);
-    setNote(`Could not fetch data for ${widget.key}; previewing with null data.`, "warn");
+    setNote(`Could not load data for ${widget.key}; previewing with null data.`, "warn");
     return null;
   }
 }

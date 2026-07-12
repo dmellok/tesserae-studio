@@ -4,17 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tesserae Studio</title>
-    <!-- Phosphor icon weights, linked at the document level exactly as
-         Tesserae's page shell does (templates/_base.html). Their @font-face
-         is document-scoped and so reaches the widgets' shadow roots, which is
-         how ph-* glyphs paint in the interactive preview. Proxied same-origin
-         from the connected Tesserae. -->
+    <!-- Reuse Tesserae's admin design system verbatim so Studio reads as part
+         of the same product: base.css carries the tokens + Inter/JetBrains Mono
+         @font-face + element base, forms.css styles .field controls. Served
+         same-origin from the disk checkout (or proxied from a live instance).
+         Phosphor weights are linked at the document level so ph-* glyphs paint
+         inside the widgets' shadow roots, exactly as templates/_base.html does. -->
+    <link rel="stylesheet" href="/static/style/base.css" />
+    <link rel="stylesheet" href="/static/style/forms.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/regular/style.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/bold/style.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/fill/style.css" />
     <link rel="stylesheet" href="/static/icons/phosphor/duotone/style.css" />
   </head>
-  <body>
+  <body class="admin">
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

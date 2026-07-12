@@ -1,112 +1,148 @@
-:root {
-  --bg: #f6f6f4;
-  --panel: #ffffff;
-  --line: #e2e2dd;
-  --ink: #1b1a16;
-  --muted: #6b6a63;
-  --accent: #8b5cf6;
-  --warn: #b8860b;
-  --err: #b00020;
-  --ok: #2e9e5b;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+/* Studio chrome, painted entirely from Tesserae's admin tokens (base.css) so
+   it matches the rest of the product. No hard-coded colours; swap --t-accent
+   and Studio retints with Tesserae. */
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-}
-
+/* -- top bar (mirrors shell.css .topbar / .brand) ---------------------- */
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  gap: var(--t-space-4);
+  padding: var(--t-space-3) var(--t-space-5);
+  background: color-mix(in oklab, var(--t-surface) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(12px);
+  border-bottom: 1px solid var(--t-border);
 }
 
-.brand { font-size: 15px; letter-spacing: 0.02em; }
-.brand b { color: var(--accent); }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--t-space-3);
+  font-weight: 700;
+  color: var(--t-fg);
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--t-radius-sm);
+  background: var(--t-accent);
+  color: var(--t-accent-fg);
+  font-size: 16px;
+  box-shadow: var(--t-shadow-inset);
+}
+.brand-name { font-size: var(--t-size-lg); letter-spacing: -0.01em; }
+.brand-name b { color: var(--t-accent); font-weight: 800; }
 
-.conn { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.conn .dot { width: 9px; height: 9px; border-radius: 50%; background: #bbb; }
-.conn.ok .dot { background: var(--ok); }
-.conn.bad .dot { background: var(--err); }
+/* -- status pills (mirrors the .dx-* status pills) --------------------- */
+.pills { display: flex; align-items: center; gap: var(--t-space-2); }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-space-2);
+  padding: 4px 10px;
+  border-radius: var(--t-radius-pill);
+  font-size: var(--t-size-sm);
+  font-weight: 500;
+  border: 1px solid var(--t-pill-neutral-border, var(--t-border));
+  background: var(--t-pill-neutral-bg);
+  color: var(--t-pill-neutral-fg);
+}
+.pill .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; opacity: 0.9;
+}
+.pill.ok {
+  background: var(--t-pill-ok-bg); color: var(--t-pill-ok-fg);
+  border-color: var(--t-pill-ok-border);
+}
+.pill.warn {
+  background: var(--t-pill-warn-bg); color: var(--t-pill-warn-fg);
+  border-color: var(--t-pill-warn-border);
+}
+.pill.bad {
+  background: var(--t-pill-danger-bg); color: var(--t-pill-danger-fg);
+  border-color: var(--t-pill-danger-border);
+}
 
+/* -- control toolbar --------------------------------------------------- */
 .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: var(--t-space-4);
   align-items: end;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
+  padding: var(--t-space-4) var(--t-space-5);
+  border-bottom: 1px solid var(--t-border);
+  background: var(--t-surface);
 }
+.controls .field { margin: 0; gap: 6px; }
+.controls .field.dim { width: 88px; }
 
-.controls label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.controls label.dim { width: 84px; }
-
-.controls select,
-.controls input {
-  font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--ink);
-}
-.controls input:disabled { background: #f1f1ee; color: var(--muted); }
-
-.stage { padding: 24px 16px; }
-
+/* -- preview stage ----------------------------------------------------- */
+.stage { padding: var(--t-space-6) var(--t-space-5); }
 .stage-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: var(--t-space-3);
+  margin-bottom: var(--t-space-4);
 }
 .tier {
-  font-size: 11px;
+  font-size: var(--t-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #fff;
-  background: var(--accent);
-  padding: 3px 8px;
-  border-radius: 999px;
+  font-weight: 600;
+  color: var(--t-accent-ink);
+  background: var(--t-accent-soft);
+  border: 1px solid var(--t-accent-tint);
+  padding: 3px 9px;
+  border-radius: var(--t-radius-pill);
 }
-.badge { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.badge {
+  font-family: var(--t-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-size-sm);
+  color: var(--t-muted);
+}
 
-/* The mount stage. The .cell-frame is a neutral backdrop; the .cell inside is
-   sized to the chosen cell dimensions and carries container-type: size. */
+/* Checkerboard backdrop drawn from the border token so the cell edge reads
+   against it without a hard rule. The .cell inside is the actual widget box. */
 .cell-frame {
   display: inline-block;
-  padding: 20px;
-  background:
-    linear-gradient(45deg, #eeeee9 25%, transparent 25%),
-    linear-gradient(-45deg, #eeeee9 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #eeeee9 75%),
-    linear-gradient(-45deg, transparent 75%, #eeeee9 75%);
+  padding: var(--t-space-5);
+  border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-lg);
+  box-shadow: var(--t-shadow-md);
+  background-color: var(--t-surface-sunk);
+  background-image:
+    linear-gradient(45deg, var(--t-border) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--t-border) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--t-border) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--t-border) 75%);
   background-size: 16px 16px;
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
 }
 .cell {
-  background: var(--panel);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  background: var(--t-surface);
+  border-radius: var(--t-radius-sm);
+  box-shadow: var(--t-shadow-sm), var(--t-shadow-inset);
   overflow: hidden;
 }
 
-.note { margin: 14px 0 0; font-size: 13px; color: var(--muted); min-height: 1.2em; }
-.note.warn { color: var(--warn); }
-.note.err { color: var(--err); }
+.note {
+  margin: var(--t-space-4) 0 0;
+  font-size: var(--t-size-md);
+  color: var(--t-muted);
+  min-height: 1.2em;
+}
+.note.warn { color: var(--t-warn); }
+.note.err { color: var(--t-danger); }

@@ -25,10 +25,14 @@ export interface Catalog {
 export interface Health {
   studio: string;
   tesserae: "ok" | "unreachable";
-  // "off" = Tesserae is up but the `mcp` experiment is disabled, so the
-  // catalog/preview data won't load until it's switched on.
+  // "off" = Tesserae is up but the `mcp` experiment is disabled.
   mcp: "ok" | "off" | "unreachable";
+  mode: "disk" | "live" | "none"; // where assets + catalog come from
+  interactive: boolean; // can we preview at all
+  faithful: boolean; // is faithful (e-ink) render available
+  live_data: boolean; // real fetch() data vs sample
   url: string;
+  path: string | null;
 }
 
 export interface SizePreset {
@@ -42,9 +46,9 @@ export interface Config {
   features: Record<string, boolean>;
 }
 
-// POST /api/mcp/widgets/<key>/data
+// GET /studio/api/widgets/<key>/data (mode-agnostic: live fetch or disk sample)
 export interface WidgetData {
   data: unknown;
-  data_source?: string;
+  source: "live" | "sample" | "none";
   fields?: Array<{ path: string; type: string; sample: unknown }>;
 }

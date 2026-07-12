@@ -1,4 +1,5 @@
-"""FastAPI thin server: Studio's own API + a reverse proxy to Tesserae.
+"""FastAPI thin server: Studio's own API, disk-first asset serving, and a
+reverse proxy to a live Tesserae for the paths that genuinely need one.
 
 Run: ``uvicorn studio_server.app:app --port 8770 --reload``
 """
@@ -13,18 +14,29 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import SIZE_DIMENSIONS, Settings
-from .proxy import PROXY_PREFIXES, forward
+from .proxy import forward
+from .source import TesseraeSource
 from .tesserae import TesseraeClient
+
+# Asset prefixes Studio owns (disk-first, live-proxy fallback). Their on-disk
+# layout under a tesserae checkout mirrors the URL, so the mounted widget's
+# root-relative links resolve unchanged.
+_ASSET_PREFIXES = ("/static", "/plugins")
+# Live-only prefixes: proxied straight through, meaningful only with a running
+# Tesserae (the MCP API and the faithful-render screenshot path).
+_LIVE_PREFIXES = ("/api/mcp", "/_test")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
-    app.state.tesserae = TesseraeClient(settings.tesserae_url)
+    client = TesseraeClient(settings.tesserae_url)
+    app.state.tesserae = client
+    app.state.source = TesseraeSource(settings.tesserae_path, client)
     try:
         yield
     finally:
-        await app.state.tesserae.aclose()
+        await client.aclose()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -35,17 +47,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # ---- Studio's own API -------------------------------------------------
     @app.get("/studio/api/health")
     async def health() -> JSONResponse:
-        client = app.state.tesserae
-        up = await client.probe_health()
-        mcp = await client.probe_mcp() if up else False
+        status = await app.state.source.status()
+        mode = "disk" if status["disk"] else ("live" if status["mcp"] else "none")
         return JSONResponse(
             {
                 "studio": "ok",
-                "tesserae": "ok" if up else "unreachable",
-                # "off" == Tesserae is up but the mcp experiment is disabled, so
-                # the catalog/preview data won't load until it's switched on.
-                "mcp": "ok" if mcp else ("off" if up else "unreachable"),
+                "tesserae": "ok" if status["live"] else "unreachable",
+                # "off" = up but the mcp experiment is disabled.
+                "mcp": "ok" if status["mcp"] else ("off" if status["live"] else "unreachable"),
+                "mode": mode,  # where assets + catalog come from
+                "interactive": status["interactive"],
+                "faithful": status["faithful"],
+                "live_data": status["live_data"],
                 "url": settings.tesserae_url,
+                "path": str(settings.tesserae_path) if settings.tesserae_path else None,
             }
         )
 
@@ -54,33 +69,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(
             {
                 "tesserae_url": settings.tesserae_url,
+                "tesserae_path": str(settings.tesserae_path) if settings.tesserae_path else None,
                 "sizes": {k: {"w": w, "h": h} for k, (w, h) in SIZE_DIMENSIONS.items()},
-                "features": {"faithful_preview": False, "editor": False, "mcp": False},
             }
         )
 
     @app.get("/studio/api/catalog")
     async def catalog() -> JSONResponse:
         try:
-            return JSONResponse(await app.state.tesserae.catalog())
+            return JSONResponse(await app.state.source.catalog())
         except Exception as exc:  # noqa: BLE001 - report, never 500 raw
             return JSONResponse(
-                {"error": f"Tesserae catalog unavailable: {exc}", "widgets": []},
+                {"error": f"Catalog unavailable: {exc}", "widgets": [], "source": "none"},
                 status_code=502,
             )
 
-    # ---- Reverse proxy to Tesserae ---------------------------------------
+    @app.get("/studio/api/widgets/{key}/data")
+    async def widget_data(key: str) -> JSONResponse:
+        return await app.state.source.widget_data(key)
+
+    # ---- Assets: disk-first, live-proxy fallback -------------------------
+    async def _asset(request: Request):
+        # request.url.path already includes the prefix (/static/... or
+        # /plugins/...); the disk layout mirrors it, so pass it through whole.
+        return await request.app.state.source.serve_asset(request, request.url.path)
+
+    for prefix in _ASSET_PREFIXES:
+        app.add_api_route(prefix + "/{path:path}", _asset, methods=["GET", "HEAD"])
+
+    # ---- Live-only proxy (MCP API, faithful render) ----------------------
     async def _proxy(request: Request):
         return await forward(request, request.app.state.tesserae.raw)
 
-    for prefix in PROXY_PREFIXES:
+    for prefix in _LIVE_PREFIXES:
         app.add_api_route(
             prefix + "/{path:path}",
             _proxy,
             methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
         )
-        # Also match the bare prefix (e.g. GET /_test/render has no sub-path
-        # segment beyond the route, but /api/mcp/catalog does; keep both).
         app.add_api_route(
             prefix,
             _proxy,

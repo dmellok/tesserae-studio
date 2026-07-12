@@ -11,18 +11,25 @@ mission and milestones, `docs/architecture.md` for the resolved design, and
 
 ## Status
 
-**M0 (Scaffold & connect):** thin FastAPI server that reverse-proxies a running Tesserae,
-plus a Vite + TypeScript front end that mounts any installed widget (whole widget or a
-single fragment) in an interactive shadow-root preview at any cell size. Faithful e-ink
-render, the editor, scaffolding, and the MCP/LLM loop are later milestones.
+**M0 (Scaffold & connect):** thin FastAPI server plus a Vite + TypeScript front end that
+mounts any installed widget (whole widget or a single fragment) in an interactive
+shadow-root preview at any cell size. Studio reuses Tesserae's admin design system
+(`base.css` tokens, Inter, `.field` controls) so it reads as part of the same product.
+
+**Standalone by default.** Studio reads Tesserae's assets and builds the widget catalog
+straight off a `tesserae` checkout on disk, so interactive preview needs **no running
+instance**. Preview data comes from Tesserae's dev-gallery samples. A live Tesserae is
+required only for real `fetch()` data and faithful (e-ink) render, both later milestones.
 
 ## Prerequisites
 
-- A running Tesserae (default `http://localhost:8765`) with the **`mcp` experiment
-  enabled** (Settings → System → MCP, or launch with `TESSERAE_EXPERIMENT_MCP=1`). The
-  `/api/mcp` surface 404s until it is on; Studio's connection indicator flags this. Run
-  Tesserae in debug mode if you want the `/_test/render` faithful path later (M2).
 - Python 3.11+ and Node 18+.
+- A `tesserae` checkout on disk for the assets + widget catalog. Studio autodetects a
+  sibling `../tesserae`; override with `STUDIO_TESSERAE_PATH`.
+- *(Optional)* A running Tesserae for live `fetch()` data and faithful render, with the
+  **`mcp` experiment enabled** (Settings → System → MCP, or `TESSERAE_EXPERIMENT_MCP=1`).
+  The `/api/mcp` surface 404s until it is on; Studio's connection pill flags this. Run
+  Tesserae in debug mode for the `/_test/render` faithful path (M2).
 
 ## Run (dev)
 
@@ -46,11 +53,12 @@ Tesserae. Pick a widget, a fragment, and a size to preview it.
 
 ## Configuration
 
-| Env var                | Default                  | Purpose                          |
-| ---------------------- | ------------------------ | -------------------------------- |
-| `STUDIO_TESSERAE_URL`  | `http://localhost:8765`  | Connected Tesserae base URL      |
-| `STUDIO_PORT`          | `8770`                   | Thin server port                 |
-| `STUDIO_WORKDIR`       | `../widgets`             | Widget working dir (M1+)         |
+| Env var                | Default                  | Purpose                                      |
+| ---------------------- | ------------------------ | -------------------------------------------- |
+| `STUDIO_TESSERAE_PATH` | autodetect `../tesserae` | Disk checkout for assets + catalog (standalone) |
+| `STUDIO_TESSERAE_URL`  | `http://localhost:8765`  | Live Tesserae for data + faithful render     |
+| `STUDIO_PORT`          | `8770`                   | Thin server port                             |
+| `STUDIO_WORKDIR`       | `../widgets`             | Widget working dir (M1+)                     |
 
 ## Tests
 
