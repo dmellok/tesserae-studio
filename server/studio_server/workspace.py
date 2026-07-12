@@ -126,6 +126,15 @@ class Workspace:
             )
         return files
 
+    def read_text_files(self, widget: str) -> dict[str, str]:
+        """All editable text files of a widget as {relpath: content}, for the
+        linter."""
+        out: dict[str, str] = {}
+        for entry in self.list_files(widget):
+            if entry["editable"]:
+                out[entry["path"]] = self.read_file(widget, entry["path"])
+        return out
+
     def read_file(self, widget: str, relpath: str) -> str:
         target = self._file_path(widget, relpath)
         if not target.is_file():

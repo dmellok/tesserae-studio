@@ -104,6 +104,21 @@ export class WidgetEditor {
     if (model) this.editor.setModel(model);
   }
 
+  has(path: string): boolean {
+    return this.models.has(path);
+  }
+
+  // Jump to a file + line (used by the lint panel).
+  reveal(path: string, line: number | null) {
+    if (!this.models.has(path)) return;
+    this.show(path);
+    if (line && line > 0) {
+      this.editor.revealLineInCenter(line);
+      this.editor.setPosition({ lineNumber: line, column: 1 });
+      this.editor.focus();
+    }
+  }
+
   value(path: string): string {
     return this.models.get(path)?.getValue() ?? "";
   }

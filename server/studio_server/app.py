@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import SIZE_DIMENSIONS, Settings
 from .proxy import forward
+from .linter import lint_widget
 from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
 from .source import TesseraeSource, catalog_entry
 from .tesserae import TesseraeClient
@@ -171,15 +172,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"ok": True, "key": key, "files": written})
 
     # ---- Manifest schema for Monaco JSON validation ----------------------
-    @app.get("/studio/api/schema/plugin")
-    async def plugin_schema() -> JSONResponse:
+    def _load_schema() -> dict | None:
+        import json
+
         path = settings.tesserae_path
         schema_file = (path / "schema" / "plugin.schema.json") if path else None
         if schema_file and schema_file.is_file():
-            import json
+            return json.loads(schema_file.read_text())
+        return None
 
-            return JSONResponse(json.loads(schema_file.read_text()))
+    @app.get("/studio/api/schema/plugin")
+    async def plugin_schema() -> JSONResponse:
+        schema = _load_schema()
+        if schema is not None:
+            return JSONResponse(schema)
         return JSONResponse({"error": "plugin.schema.json unavailable (no disk checkout)"}, 404)
+
+    # ---- Widget linter (the Golden Rules) --------------------------------
+    @app.get("/studio/api/lint/{widget}")
+    async def lint(widget: str) -> JSONResponse:
+        import json
+
+        ws = app.state.workspace
+        try:
+            files = ws.read_text_files(widget)
+        except WorkspaceError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        try:
+            manifest = json.loads(files.get("plugin.json", "{}"))
+        except json.JSONDecodeError as exc:
+            manifest = {}
+            # Surface the parse error itself as a finding instead of failing.
+            bad = [{"rule": "manifest-json", "level": "error",
+                    "message": f"plugin.json is not valid JSON: {exc}", "file": "plugin.json", "line": exc.lineno}]
+            return JSONResponse({"widget": widget, "findings": bad, "errors": 1, "warnings": 0})
+        findings = lint_widget(files, manifest, schema=_load_schema())
+        errors = sum(1 for f in findings if f["level"] == "error")
+        return JSONResponse(
+            {"widget": widget, "findings": findings,
+             "errors": errors, "warnings": len(findings) - errors}
+        )
 
     # ---- Assets: workspace-first, then disk, then live proxy -------------
     async def _asset(request: Request):

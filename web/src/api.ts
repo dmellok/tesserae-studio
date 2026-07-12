@@ -53,6 +53,19 @@ export const duplicateWidget = (source: string, name?: string) =>
     body: JSON.stringify({ source, name }),
   });
 
+export interface LintFinding {
+  rule: string;
+  level: "error" | "warning";
+  message: string;
+  file: string;
+  line: number | null;
+}
+
+export const lintWidget = (widget: string) =>
+  getJson<{ widget: string; findings: LintFinding[]; errors: number; warnings: number }>(
+    `/studio/api/lint/${encodeURIComponent(widget)}`,
+  );
+
 // The manifest JSON schema for live plugin.json validation. Null when no disk
 // checkout is available.
 export const getPluginSchema = async (): Promise<object | null> => {

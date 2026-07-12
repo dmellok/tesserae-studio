@@ -108,8 +108,29 @@
 .tab.active { color: var(--t-fg); border-bottom-color: var(--t-accent); background: var(--t-surface); }
 .tab-dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--t-accent); }
 
+.pane-head #lint-pill { margin-left: auto; cursor: pointer; }
+.pane-head .btn { margin-left: var(--t-space-2); }
+
 .editor-wrap { flex: 1; min-height: 0; position: relative; }
 .monaco { position: absolute; inset: 0; }
+
+/* -- lint panel --------------------------------------------------------- */
+.lint-panel {
+  flex: none; max-height: 30%; overflow: auto;
+  border-top: 1px solid var(--t-border); background: var(--t-surface-sunk);
+}
+.lint-row {
+  display: flex; align-items: baseline; gap: var(--t-space-3); width: 100%;
+  padding: 7px var(--t-space-4); border: none; background: transparent; cursor: pointer;
+  text-align: left; font: inherit; font-size: var(--t-size-sm);
+  border-bottom: 1px solid var(--t-border);
+}
+.lint-row:hover { background: var(--t-surface); }
+.lint-ico { font-size: 14px; flex: none; transform: translateY(2px); }
+.lint-row.error .lint-ico { color: var(--t-danger); }
+.lint-row.warning .lint-ico { color: var(--t-warn); }
+.lint-msg { flex: 1; color: var(--t-fg); }
+.lint-loc { flex: none; font-family: var(--t-font-mono); color: var(--t-muted); font-size: var(--t-size-xs); }
 .editor-empty {
   position: absolute; inset: 0; display: grid; place-items: center;
   padding: var(--t-space-7); text-align: center;

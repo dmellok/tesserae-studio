@@ -6,10 +6,12 @@ import {
   getHealth,
   getPluginSchema,
   getWidgetData,
+  lintWidget,
   readFile,
   scaffoldWidget,
   writeFile,
 } from "./api";
+import type { LintFinding } from "./api";
 import { mountWidget } from "./mount";
 import { WidgetEditor, type OpenFile } from "./editor";
 import type { Config, FileEntry, Fragment, Widget } from "./types";
@@ -97,6 +99,7 @@ app.innerHTML = `
       <div class="pane-head">
         <span class="pane-title" id="editor-widget">—</span>
         <span class="pane-sub" id="editor-sub"></span>
+        <button class="pill" id="lint-pill" hidden><span class="dot"></span><span id="lint-text"></span></button>
         <button class="btn" id="save" disabled>Save <kbd>⌘S</kbd></button>
       </div>
       <div class="tabs" id="tabs"></div>
@@ -104,6 +107,7 @@ app.innerHTML = `
         <div class="monaco" id="monaco"></div>
         <div class="editor-empty" id="editor-empty" hidden></div>
       </div>
+      <div class="lint-panel" id="lint-panel" hidden></div>
     </section>
     <section class="preview-pane">
       <div class="stage-head">
@@ -128,6 +132,12 @@ const note = $<HTMLDivElement>("note");
 const tabsEl = $<HTMLDivElement>("tabs");
 const saveBtn = $<HTMLButtonElement>("save");
 const emptyEl = $<HTMLDivElement>("editor-empty");
+const lintPill = $<HTMLButtonElement>("lint-pill");
+const lintText = $<HTMLSpanElement>("lint-text");
+const lintPanel = $<HTMLDivElement>("lint-panel");
+lintPill.addEventListener("click", () => {
+  if (lintPanel.innerHTML) lintPanel.hidden = !lintPanel.hidden;
+});
 
 const editor = new WidgetEditor($<HTMLDivElement>("monaco"));
 editor.onDirtyChange(() => {
@@ -226,6 +236,64 @@ async function render() {
   }
 }
 
+// -- lint ------------------------------------------------------------------
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+}
+
+function openFile(path: string) {
+  if (!editor.has(path)) return;
+  state.activeFile = path;
+  editor.show(path);
+  renderTabs();
+  saveBtn.disabled = !editor.isDirty(path);
+}
+
+async function runLint(widget: Widget) {
+  if (!widget.editable) {
+    lintPill.hidden = true;
+    lintPanel.hidden = true;
+    lintPanel.innerHTML = "";
+    return;
+  }
+  try {
+    const res = await lintWidget(widget.key);
+    renderLint(res.findings, res.errors, res.warnings);
+  } catch {
+    lintPill.hidden = true;
+  }
+}
+
+function renderLint(findings: LintFinding[], errors: number, warnings: number) {
+  lintPill.hidden = false;
+  lintPill.classList.remove("ok", "warn", "bad");
+  if (errors) {
+    lintPill.classList.add("bad");
+    lintText.textContent = `${errors} error${errors > 1 ? "s" : ""}${warnings ? ` · ${warnings} warn` : ""}`;
+  } else if (warnings) {
+    lintPill.classList.add("warn");
+    lintText.textContent = `${warnings} warning${warnings > 1 ? "s" : ""}`;
+  } else {
+    lintPill.classList.add("ok");
+    lintText.textContent = "lint clean";
+  }
+  lintPanel.innerHTML = "";
+  for (const f of findings) {
+    const row = document.createElement("button");
+    row.className = `lint-row ${f.level}`;
+    row.innerHTML =
+      `<i class="lint-ico ph-bold ${f.level === "error" ? "ph-x-circle" : "ph-warning"}"></i>` +
+      `<span class="lint-msg">${escapeHtml(f.message)}</span>` +
+      `<span class="lint-loc">${f.file}${f.line ? `:${f.line}` : ""}</span>`;
+    row.addEventListener("click", () => {
+      openFile(f.file);
+      editor.reveal(f.file, f.line);
+    });
+    lintPanel.appendChild(row);
+  }
+  lintPanel.hidden = findings.length === 0;
+}
+
 // -- editor ----------------------------------------------------------------
 function renderTabs() {
   tabsEl.innerHTML = "";
@@ -263,6 +331,7 @@ async function loadEditor(widget: Widget) {
     emptyEl.querySelector("#dup-btn")?.addEventListener("click", () => void duplicate(widget));
     $<HTMLSpanElement>("editor-widget").textContent = widget.name;
     $<HTMLSpanElement>("editor-sub").textContent = "read-only";
+    void runLint(widget); // hides the pill for read-only widgets
     return;
   }
   emptyEl.hidden = true;
@@ -290,6 +359,7 @@ async function loadEditor(widget: Widget) {
   state.activeFile = preferred;
   renderTabs();
   saveBtn.disabled = true;
+  void runLint(widget);
 }
 
 async function save() {
@@ -309,6 +379,7 @@ async function save() {
   // Editing the manifest can change fragments/name; refresh the catalog entry.
   if (path === "plugin.json") await refreshCatalog(widget.key);
   await render();
+  await runLint(widget);
   setNote(`Saved ${path}. Preview updated.`, "");
 }
 

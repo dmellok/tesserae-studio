@@ -11,12 +11,14 @@ mission and milestones, `docs/architecture.md` for the resolved design, and
 
 ## Status
 
-**M2 (in progress):** scaffold new widgets and duplicate existing ones into the workspace.
-"New widget" generates a fragment-first, lint-clean widget (manifest validated against
-`plugin.schema.json`, `client.js` branching on `ctx.cell.fragment`, optional `server.py`, a
-smoke test); "Duplicate to workspace" copies a read-only reference widget so you can edit
-it. Still to come in M2: the widget linter, `mine_data_schema`, and faithful `/_test/render`
-preview.
+**M2 (in progress):** scaffold new widgets and duplicate existing ones into the workspace,
+with a live widget linter. "New widget" generates a fragment-first, lint-clean widget
+(manifest validated against `plugin.schema.json`, `client.js` branching on
+`ctx.cell.fragment`, optional `server.py`, a smoke test); "Duplicate to workspace" copies a
+read-only reference widget so you can edit it. The **linter** encodes the Golden Rules
+(no client fetch, no hard-coded hex, container queries not media queries, idempotent render,
+declared egress, and more) and shows findings inline in the editor, on load and every save.
+Still to come in M2: `mine_data_schema` and faithful `/_test/render` preview.
 
 **M1 (Editor):** a Monaco multi-file editor over a working directory, side by side with the
 live preview. Open a widget's `plugin.json` (validated live against Tesserae's
