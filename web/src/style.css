@@ -146,11 +146,20 @@
 
 /* -- preview stage ----------------------------------------------------- */
 .stage-head { display: flex; align-items: center; gap: var(--t-space-3); margin-bottom: var(--t-space-4); }
-.tier {
-  font-size: var(--t-size-xs); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
-  color: var(--t-accent-ink); background: var(--t-accent-soft);
-  border: 1px solid var(--t-accent-tint); padding: 3px 9px; border-radius: var(--t-radius-pill);
+.tier-toggle {
+  display: inline-flex; padding: 2px; gap: 2px;
+  background: var(--t-surface-sunk); border: 1px solid var(--t-border); border-radius: var(--t-radius-pill);
 }
+.tier-btn {
+  font: inherit; font-size: var(--t-size-xs); font-weight: 600; letter-spacing: 0.02em;
+  padding: 4px 12px; border: none; background: transparent; color: var(--t-muted);
+  border-radius: var(--t-radius-pill); cursor: pointer; transition: var(--t-trans);
+}
+.tier-btn:hover:not(:disabled):not(.active) { color: var(--t-fg); }
+.tier-btn.active { background: var(--t-accent); color: var(--t-accent-fg); box-shadow: var(--t-shadow-inset); }
+.tier-btn:disabled { opacity: 0.4; cursor: default; }
+
+.faithful-img { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }
 .badge { font-family: var(--t-font-mono); font-variant-numeric: tabular-nums; font-size: var(--t-size-sm); color: var(--t-muted); }
 .src-chip {
   font-size: var(--t-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;

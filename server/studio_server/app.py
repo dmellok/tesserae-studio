@@ -124,7 +124,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             base = {"widgets": [], "appearance": {}, "source": "none", "error": str(exc)}
         seen = {w["key"] for w in ws_entries}
         ref = [
-            {**w, "editable": False, "origin": base.get("source", "tesserae")}
+            {**w, "editable": False, "origin": base.get("source", "tesserae"),
+             "registered": w["key"] in live_keys}
             for w in base.get("widgets", [])
             if w["key"] not in seen
         ]

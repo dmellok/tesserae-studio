@@ -31,6 +31,8 @@ interface State {
   h: number;
   dataCache: Map<string, unknown>;
   sourceCache: Map<string, string>; // widget data source per render (live/sample/none)
+  tier: "interactive" | "faithful";
+  faithful: boolean; // is the faithful render tier available (mcp reachable)
   version: number; // mount cache-bust, bumped on save
   files: FileEntry[];
   activeFile?: string;
@@ -43,6 +45,8 @@ const state: State = {
   h: 400,
   dataCache: new Map(),
   sourceCache: new Map(),
+  tier: "interactive",
+  faithful: false,
   version: 0,
   files: [],
 };
@@ -116,7 +120,10 @@ app.innerHTML = `
     </section>
     <section class="preview-pane">
       <div class="stage-head">
-        <span class="tier">Interactive preview</span>
+        <div class="tier-toggle" role="tablist">
+          <button class="tier-btn active" id="tier-interactive">Interactive</button>
+          <button class="tier-btn" id="tier-faithful" title="True e-ink render through Tesserae">Faithful</button>
+        </div>
         <span class="badge" id="badge"></span>
         <span class="src-chip" id="src" hidden></span>
       </div>
@@ -178,9 +185,72 @@ async function refreshHealth() {
       setPill("conn", "conn-text", h.mode === "disk" ? "warn" : "bad", "Tesserae offline");
     else if (h.mcp === "off") setPill("conn", "conn-text", "warn", 'enable the "mcp" experiment');
     else setPill("conn", "conn-text", "ok", h.live_data ? "live data + faithful" : "connected");
+    state.faithful = h.faithful;
+    updateTierButtons();
   } catch {
     setPill("conn", "conn-text", "bad", "studio server unreachable");
+    state.faithful = false;
+    updateTierButtons();
   }
+}
+
+// -- preview tiers (interactive shadow-mount vs faithful e-ink PNG) ---------
+const tierInteractive = $<HTMLButtonElement>("tier-interactive");
+const tierFaithful = $<HTMLButtonElement>("tier-faithful");
+tierInteractive.addEventListener("click", () => {
+  state.tier = "interactive";
+  void render();
+});
+tierFaithful.addEventListener("click", () => {
+  if (tierFaithful.disabled) return;
+  state.tier = "faithful";
+  void render();
+});
+
+function faithfulReady(): boolean {
+  return !!(state.faithful && state.widget?.registered);
+}
+
+function updateTierButtons() {
+  const ok = faithfulReady();
+  tierFaithful.disabled = !ok;
+  tierFaithful.title = ok
+    ? "True e-ink render through Tesserae"
+    : !state.faithful
+      ? "Connect a Tesserae (mcp experiment on) for the faithful render"
+      : "Register this widget to Tesserae first";
+  if (!ok && state.tier === "faithful") state.tier = "interactive";
+  tierInteractive.classList.toggle("active", state.tier === "interactive");
+  tierFaithful.classList.toggle("active", state.tier === "faithful");
+}
+
+function faithfulSize(dims: { w: number; h: number }): string {
+  if (["xs", "sm", "md", "lg"].includes(state.sizeMode)) return state.sizeMode;
+  const longer = Math.max(dims.w, dims.h);
+  return longer <= 200 ? "xs" : longer <= 400 ? "sm" : longer <= 700 ? "md" : "lg";
+}
+
+function renderFaithful(dims: { w: number; h: number }) {
+  setSourceChip("");
+  frame.textContent = "";
+  const size = faithfulSize(dims);
+  const img = document.createElement("img");
+  img.className = "cell faithful-img";
+  img.alt = `${state.widget!.key} faithful render`;
+  // ?t= busts the browser cache after an edit/register so the PNG re-renders.
+  img.src = `/studio/api/render/${encodeURIComponent(state.widget!.key)}.png?size=${size}&t=${state.version}`;
+  img.onerror = () =>
+    setNote("Faithful render failed (needs the widget registered and Tesserae in debug mode).", "err");
+  img.onload = () => {
+    if (note.classList.contains("err")) setNote("");
+  };
+  frame.appendChild(img);
+  setNote(
+    state.fragment && state.fragment.id !== "full"
+      ? "Faithful render shows the whole widget (fragments preview interactively only)."
+      : "",
+    "",
+  );
 }
 
 // -- preview ---------------------------------------------------------------
@@ -235,8 +305,14 @@ async function render() {
   const dims = resolveDims();
   syncDimInputs(dims);
   badge.textContent = `${state.fragment.id} · ${dims.w}×${dims.h}`;
-  const data = await dataFor(state.widget);
+  updateTierButtons(); // may fall faithful back to interactive if unavailable
 
+  if (state.tier === "faithful") {
+    renderFaithful(dims);
+    return;
+  }
+
+  const data = await dataFor(state.widget);
   frame.textContent = "";
   const host = document.createElement("div");
   host.className = "cell";

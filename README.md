@@ -22,8 +22,10 @@ declared egress, and more) and shows findings inline in the editor, on load and 
 Tesserae's `marketplace/` when Studio and Tesserae share a host, or an **HTTP push over MCP**
 (package -> install -> in-process reload, no restart) when Tesserae is remote or in the Home
 Assistant add-on. Either way the widget's `server.py` then serves **live `fetch()` data** in
-the preview (a source chip shows live vs sample vs empty). Still to come in M2:
-`mine_data_schema`.
+the preview (a source chip shows live vs sample vs empty). The preview has two explicit
+tiers: **Interactive** (fast shadow-mount) and **Faithful** (the true e-ink PNG rendered by
+Tesserae), toggled in the stage head, so interactive output is never mistaken for the panel
+render. Still to come in M2: `mine_data_schema`.
 
 **M1 (Editor):** a Monaco multi-file editor over a working directory, side by side with the
 live preview. Open a widget's `plugin.json` (validated live against Tesserae's
