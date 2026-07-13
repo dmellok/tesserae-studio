@@ -5,7 +5,7 @@
 export const APP_HTML = `
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark"><i class="ph-bold ph-squares-four"></i></span>
+      <span class="brand-mark"><img src="/icon.svg" alt="" width="30" height="30" /></span>
       <span class="brand-name">Tesserae <b>Studio</b></span>
     </div>
     <div class="topbar-right">

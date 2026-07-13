@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Tesserae Studio brand mark. The Tesserae mosaic with the two quadrants
-  (top-right + bottom-left) outlined instead of filled, marking the authoring
-  tool. 256x256 viewBox; outer rounded square, gradient --t-accent -> -hover.
+  Tesserae Studio brand mark: the Tesserae mosaic with the two quadrants
+  (top-right and bottom-left) outlined instead of filled, marking the authoring
+  tool. 256x256 viewBox; outer rounded square in the accent gradient.
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>

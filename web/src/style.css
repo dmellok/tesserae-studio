@@ -79,11 +79,10 @@ button.pill:disabled { opacity: 0.55; cursor: default; }
 }
 .brand { display: flex; align-items: center; gap: var(--t-space-3); }
 .brand-mark {
-  display: grid; place-items: center; width: 30px; height: 30px;
-  border-radius: var(--t-radius-sm);
-  background: var(--t-accent); color: var(--t-accent-fg); font-size: 17px;
-  box-shadow: var(--t-shadow-sm), var(--t-shadow-inset);
+  width: 30px; height: 30px; border-radius: 8px; overflow: hidden;
+  box-shadow: var(--t-shadow-sm);
 }
+.brand-mark img { display: block; width: 100%; height: 100%; }
 .brand-name { font-size: var(--t-size-lg); font-weight: 600; letter-spacing: -0.01em; color: var(--t-fg); }
 .brand-name b { color: var(--t-accent); font-weight: 800; }
 .topbar-right { display: flex; align-items: center; gap: var(--t-space-3); }
