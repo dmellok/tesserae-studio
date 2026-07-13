@@ -127,6 +127,31 @@ export const lintWidget = (widget: string) =>
     `/studio/api/lint/${encodeURIComponent(widget)}`,
   );
 
+export interface WidgetOption {
+  name: string;
+  type: string;
+  label?: string;
+  default?: unknown;
+  choices?: Array<{ value: string; label?: string }>;
+  choices_from?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+// The widget's cell_options, from its manifest, for the config form.
+export const getWidgetOptions = (key: string) =>
+  getJson<{ key: string; options: WidgetOption[] }>(
+    `/studio/api/widgets/${encodeURIComponent(key)}/options`,
+  );
+
+// Whether the widget/companion ships an admin page (server.py blueprint()) and
+// the URL Studio proxies it at (live only, once registered).
+export const getWidgetAdmin = (key: string) =>
+  getJson<{ key: string; has_admin: boolean; url: string }>(
+    `/studio/api/widgets/${encodeURIComponent(key)}/admin`,
+  );
+
 // The manifest JSON schema for live plugin.json validation. Null when no disk
 // checkout is available.
 export const getPluginSchema = async (): Promise<object | null> => {

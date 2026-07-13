@@ -72,6 +72,18 @@ export function mineDiffBits(diff: {
     .join(" ");
 }
 
+// Seed config-form values from each option's declared default. Options without
+// a default are simply absent (the widget falls back to its own default).
+export function optionDefaults(
+  options: Array<{ name: string; default?: unknown }>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const o of options) {
+    if (o.default !== undefined) out[o.name] = o.default;
+  }
+  return out;
+}
+
 export interface McpClientConfig {
   studioUrl: string;
   cli: string;

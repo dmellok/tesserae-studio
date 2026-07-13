@@ -4,6 +4,7 @@
 
 import { getConfig, getPluginSchema } from "./api";
 import { initCatalog, refreshCatalog, selectWidget } from "./catalog";
+import { initConfig } from "./configForm";
 import { refreshHealth } from "./connection";
 import { getEditor, initEditor } from "./editorInstance";
 import { initLint } from "./lintPanel";
@@ -22,6 +23,7 @@ initEditor();
 initTheme();
 initSettings();
 initPreview();
+initConfig();
 initWorkspace();
 initLint();
 initCatalog();

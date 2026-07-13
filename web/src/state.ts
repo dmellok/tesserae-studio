@@ -21,6 +21,7 @@ export interface State {
   version: number; // mount cache-bust, bumped on save
   files: FileEntry[];
   activeFile?: string;
+  options: Record<string, unknown>; // current widget's cell_option values (config form)
 }
 
 export const state: State = {
@@ -34,4 +35,5 @@ export const state: State = {
   faithful: false,
   version: 0,
   files: [],
+  options: {},
 };

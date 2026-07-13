@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.3.5", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.4.0", lifespan=lifespan)
     app.state.settings = settings
 
     # ---- Studio's own API -------------------------------------------------
@@ -166,6 +166,50 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/studio/api/widgets/{key}/data")
     async def widget_data(key: str) -> JSONResponse:
         return await app.state.source.widget_data(key)
+
+    def _widget_files(key: str) -> dict[str, str]:
+        """A widget's text files, workspace-first then the disk checkout, so the
+        config form + admin detection work for authored and reference widgets."""
+        try:
+            return app.state.workspace.read_text_files(key)
+        except WorkspaceError:
+            pass
+        path = settings.tesserae_path
+        files: dict[str, str] = {}
+        if path:
+            wdir = path / "plugins" / key
+            for name in ("plugin.json", "server.py"):
+                f = wdir / name
+                if f.is_file():
+                    files[name] = f.read_text()
+        return files
+
+    @app.get("/studio/api/widgets/{key}/options")
+    async def widget_options(key: str) -> JSONResponse:
+        """The widget's cell_options (from its manifest) so Studio can render a
+        config form and preview with real options."""
+        import json
+
+        files = _widget_files(key)
+        manifest: dict = {}
+        if "plugin.json" in files:
+            try:
+                manifest = json.loads(files["plugin.json"])
+            except json.JSONDecodeError:
+                manifest = {}
+        opts = manifest.get("cell_options")
+        return JSONResponse({"key": key, "options": opts if isinstance(opts, list) else []})
+
+    @app.get("/studio/api/widgets/{key}/admin")
+    async def widget_admin(key: str) -> JSONResponse:
+        """Whether the widget/companion ships an admin page (server.py exports a
+        Flask ``blueprint()``), and the URL Studio proxies it at when registered
+        in the connected Tesserae."""
+        import re
+
+        server = _widget_files(key).get("server.py", "")
+        has_admin = bool(re.search(r"def\s+blueprint\s*\(", server))
+        return JSONResponse({"key": key, "has_admin": has_admin, "url": f"/plugins/{key}/"})
 
     # ---- Working directory: the files Monaco edits -----------------------
     @app.get("/studio/api/files/{widget}")

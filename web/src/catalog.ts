@@ -3,6 +3,7 @@
 // "New widget" / "New bundle" scaffold dialogs.
 
 import { getCatalog, scaffoldBundle, scaffoldWidget } from "./api";
+import { loadWidgetConfig } from "./configForm";
 import { parseMembers } from "./logic";
 import { render } from "./preview";
 import { state } from "./state";
@@ -30,6 +31,7 @@ export async function selectWidget(key: string) {
   if (!state.widget) return;
   $<HTMLSelectElement>("widget").value = key;
   populateFragments();
+  await loadWidgetConfig(key); // sets state.options (defaults) before first render
   await Promise.all([loadEditor(state.widget), render()]);
 }
 

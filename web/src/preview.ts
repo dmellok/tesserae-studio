@@ -148,7 +148,7 @@ export async function render() {
       h: dims.h,
       panelW: PANEL.w,
       panelH: PANEL.h,
-      options: {},
+      options: state.options,
       data,
       version: state.version,
     });

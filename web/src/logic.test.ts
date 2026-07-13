@@ -6,6 +6,7 @@ import {
   lintSummary,
   mcpClientConfig,
   mineDiffBits,
+  optionDefaults,
   parseMembers,
 } from "./logic";
 import type { Health } from "./types";
@@ -128,6 +129,25 @@ describe("mineDiffBits", () => {
 
   it("omits empty buckets", () => {
     expect(mineDiffBits({ added: ["a"], changed: [], removed: [] })).toBe("+1");
+  });
+});
+
+describe("optionDefaults", () => {
+  it("collects declared defaults, skipping options without one", () => {
+    expect(
+      optionDefaults([
+        { name: "face", default: "swiss" },
+        { name: "show_seconds", default: true },
+        { name: "label" },
+      ]),
+    ).toEqual({ face: "swiss", show_seconds: true });
+  });
+
+  it("keeps falsy defaults like false and 0", () => {
+    expect(optionDefaults([{ name: "b", default: false }, { name: "n", default: 0 }])).toEqual({
+      b: false,
+      n: 0,
+    });
   });
 });
 

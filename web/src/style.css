@@ -354,6 +354,32 @@ button.pill:disabled { opacity: 0.55; cursor: default; }
 }
 .copy-row .btn { flex: none; white-space: nowrap; }
 
+/* ---- widget config form + admin iframe ------------------------------ */
+.stage-actions { display: flex; gap: var(--t-space-2); margin-left: auto; }
+.tier-btn.active, .btn.ghost.active { color: var(--t-accent); border-color: var(--t-accent-soft); }
+
+.config-panel {
+  margin-top: var(--t-space-4); padding: var(--t-space-4);
+  background: var(--t-surface-sunk); border: 1px solid var(--t-border);
+  border-radius: var(--t-radius-md);
+  display: flex; flex-direction: column; gap: var(--t-space-3);
+}
+.cfg-head { display: flex; align-items: center; justify-content: space-between; }
+.cfg-head span { font-weight: 600; font-size: var(--t-size-sm); color: var(--t-fg-soft); }
+.cfg-empty { color: var(--t-muted); font-size: var(--t-size-sm); }
+.cfg-check { display: flex; align-items: center; justify-content: space-between; gap: var(--t-space-3); }
+.cfg-check span { font-size: var(--t-size-md); }
+.cfg-check input { accent-color: var(--t-accent); width: 16px; height: 16px; }
+.cfg-multiset { display: flex; flex-wrap: wrap; gap: var(--t-space-2) var(--t-space-4); }
+.cfg-multi { display: flex; align-items: center; gap: var(--t-space-1); font-size: var(--t-size-sm); }
+.cfg-multi input { accent-color: var(--t-accent); }
+
+.admin-frame {
+  width: 100%; height: 70vh; margin-top: var(--t-space-2);
+  border: 1px solid var(--t-border); border-radius: var(--t-radius-md);
+  background: var(--t-surface);
+}
+
 /* ---- graceful narrow widths (< ~900px): stack the split -------------- */
 @media (max-width: 900px) {
   .workbench { flex-direction: column; }

@@ -126,8 +126,14 @@ export const APP_HTML = `
         </div>
         <span class="badge" id="badge"></span>
         <span class="src-chip" id="src" hidden></span>
+        <div class="stage-actions">
+          <button class="btn ghost" id="config-btn"><i class="ph-bold ph-sliders-horizontal"></i> Config</button>
+          <button class="btn ghost" id="admin-btn" hidden><i class="ph-bold ph-wrench"></i> Admin</button>
+        </div>
       </div>
       <div class="cell-frame" id="frame"></div>
+      <iframe class="admin-frame" id="admin-frame" title="Admin page" hidden></iframe>
+      <div class="config-panel" id="config-panel" hidden></div>
       <p class="note" id="note"></p>
     </section>
   </div>
