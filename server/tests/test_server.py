@@ -680,8 +680,10 @@ def test_catalog_entry_valid(publish_client):
 
 
 def test_catalog_entry_rejects_bad_tag(publish_client):
+    # Tags are a closed enum: an unknown tag hard-fails up front (matching catalog
+    # CI) rather than building an entry flagged valid:False.
     r = _entry(publish_client, "aq", tags=["not-a-tag"])
-    assert r["valid"] is False and any("tags" in e for e in r["errors"])
+    assert "closed set" in r.get("error", "") and "not-a-tag" in r["error"]
 
 
 def test_catalog_entry_rejects_bad_sha(publish_client):

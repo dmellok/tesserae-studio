@@ -113,6 +113,12 @@ def build_catalog_entry(
     tags = opts.get("tags") or []
     if not tags:
         raise PublishError(f"at least one tag is required (from: {', '.join(TAGS)})")
+    # Tags are a closed enum in the real marketplace schema; reject anything off
+    # it up front (catalog CI rejects unknown tags) rather than baking a bad tag
+    # into the entry. Art / generative / picture widgets use "media".
+    unknown = [t for t in tags if t not in TAGS]
+    if unknown:
+        raise PublishError(f"unknown tag(s) {unknown}; tags are a closed set: {', '.join(TAGS)}")
     release = opts.get("release") or {}
     for k in ("version", "tarball_url", "sha256"):
         if not release.get(k):

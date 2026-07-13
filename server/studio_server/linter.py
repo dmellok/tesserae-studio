@@ -345,6 +345,41 @@ def _r_data_schema_when_server(files, manifest):
         )
 
 
+def _r_select_choices(files, manifest):
+    """A select/multiselect cell_option needs its choice list under ``choices``
+    (or a ``choices_from`` key). A mis-named ``options`` key parses fine but the
+    Tesserae config dropdown reads ``choices`` and renders empty."""
+    opts = manifest.get("cell_options")
+    if not isinstance(opts, list):
+        return
+    for opt in opts:
+        if not isinstance(opt, dict) or opt.get("type") not in ("select", "multiselect"):
+            continue
+        name = opt.get("name", "?")
+        choices = opt.get("choices")
+        if (isinstance(choices, list) and choices) or (
+            isinstance(opt.get("choices_from"), str) and opt.get("choices_from")
+        ):
+            continue
+        if "options" in opt:
+            yield Finding(
+                "select-choices",
+                ERROR,
+                f"cell_option '{name}' ({opt.get('type')}) puts its choice list under "
+                "'options'; the key must be 'choices' (or use choices_from). The config "
+                "dropdown renders empty otherwise.",
+                "plugin.json",
+            )
+        else:
+            yield Finding(
+                "select-choices",
+                ERROR,
+                f"cell_option '{name}' ({opt.get('type')}) has no 'choices' or 'choices_from'; "
+                "its config dropdown would be empty.",
+                "plugin.json",
+            )
+
+
 def _r_smoke_test(files, manifest):
     smoke = next((p for p in files if p.endswith("test_smoke.py")), None)
     if not smoke:
@@ -370,6 +405,7 @@ RULES: list[Callable[[dict, dict], Iterable[Finding]]] = [
     _r_no_raise,
     _r_declare_egress,
     _r_data_schema_when_server,
+    _r_select_choices,
     _r_smoke_test,
 ]
 

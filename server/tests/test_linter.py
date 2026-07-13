@@ -231,6 +231,37 @@ def test_sanitize_js_preserves_line_numbers():
     assert "multi" not in out  # block comment blanked
 
 
+def test_select_choices_required():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "cell_options": [{"name": "mode", "type": "select", "default": "a"}],
+    }
+    assert "select-choices" in ids(CLEAN_FILES, manifest)
+
+
+def test_select_choices_misnamed_options_key():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "cell_options": [
+            {"name": "mode", "type": "select", "options": [{"value": "a", "label": "A"}]}
+        ],
+    }
+    findings = [f for f in lint_widget(CLEAN_FILES, manifest) if f["rule"] == "select-choices"]
+    assert findings and "'options'" in findings[0]["message"]
+
+
+def test_select_with_choices_ok():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "cell_options": [
+            {"name": "mode", "type": "select", "choices": [{"value": "a", "label": "A"}]},
+            {"name": "src", "type": "multiselect", "choices_from": "items"},
+            {"name": "label", "type": "string"},
+        ],
+    }
+    assert "select-choices" not in ids(CLEAN_FILES, manifest)
+
+
 def test_manifest_schema_validation():
     schema = {
         "type": "object",

@@ -48,18 +48,24 @@ DIAGNOSING A FAILED / BLANK RENDER (do this before re-editing client.js)
 
 HARD RULES
 - Lint: data_schema.fields[].type must be num | str | arr (never "int"). server.py must NEVER use `raise`, return {"error": "..."} or thread (value, error) tuples.
+- select / multiselect cell_options: the choice list key is "choices" (or "choices_from"), NOT "options". A mis-named key parses but the config dropdown renders empty (the linter now flags this); verify with get_widget_options.
 - Secrets (API keys) = settings[] with "secret": true, settings.get(...). Per-cell config = cell_options[], options.get(...).
 - Egress: an own-host widget declares requires: ["network:<exact-host>", "settings:plugin"], caches in ctx["data_dir"], and returns friendly error strings (they render verbatim). EXCEPTION: a widget that reads a shared family core (e.g. ha_core via current_app.config["PLUGIN_REGISTRY"].get("ha_core")) OMITS requires and declares no host, the core owns egress. Mirror the family; do not add network requires.
-- client.js: default export render(shadow, ctx); paint ONLY from Spectra semantic tokens (--surface, --surface-sunken, --text-primary/-secondary/-muted, --accent-1..6 + --accent-*-soft); cqmin / container queries; ph-bold icons; no borders, no animations, no client-side fetch; idempotent innerHTML; link /static/style/spectra-widgets.css. fragments[] and branch on ctx.cell.fragment for canvas-placeable pieces.
+- Pure client-side widgets (generative art, clocks, countdowns) need no data binding: server.py may return a tiny dict (e.g. a UTC day/seed for deterministic-per-day output) or you skip live data. Don't invent a fetch the widget doesn't need.
+- client.js: default export render(shadow, ctx); paint ONLY from Spectra semantic tokens (--surface, --surface-sunken, --text-primary/-secondary/-muted, --accent-1..6 + --accent-*-soft); no hardcoded hex in CSS/style strings (a genuine literal like white-on-a-fixed-scrim needs a /* identity */ comment on that line; hex in a JS data array/palette is fine); cqmin / container queries; ph-bold icons; no borders, no animations, no client-side fetch; idempotent innerHTML; link /static/style/spectra-widgets.css. fragments[] and branch on ctx.cell.fragment for canvas-placeable pieces (declare NO fragments for one indivisible view rather than an unused one).
+- Full-bleed / edge-to-edge art: one square SVG viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" inside a container-type:size wrapper (width/height 100%, overflow hidden) fills any cell aspect ratio without distortion.
 
 DATA REALISM (before coding)
 - Check what the API returns for a plain key. If a requested stat needs OAuth/analytics or history the API doesn't expose, say so and adapt (self-track snapshots in data_dir for deltas; swap an impossible metric for an honest one). Flag substitutions.
 
 AUTHORITATIVE SPEC: the tesserae repo docs/widgets.md + docs/dev/writing-a-widget.md.
 
-SUBMISSION (community catalog, keyed/third-party widgets)
-- Own public repo tesserae-widget-<name>, plugin.json at repo ROOT, tag vX.Y.Z, tarball sha256.
-- generate_catalog_entry (validate), then PR to dmellok/tesserae-widgets: entry in widgets.json (2-space indent, alphabetical by id; key order id,name,description,icon,author,tags,kind,tesserae_compat,official,screenshot_sizes,release,source) plus screenshots/<id>/lg.png (required, CI rejects without it). Tags are a closed enum. Description <= 280 chars.
+SUBMISSION (community catalog, keyed/third-party widgets). Creating a public repo, release, or PR is outward and gated: ASK the user before creating anything public.
+- Each widget is its OWN public repo tesserae-widget-<slug> (files at ROOT, AGPL-3.0), tagged vX.Y.Z.
+- release.tarball_url is the GitHub SOURCE ARCHIVE (.../archive/refs/tags/vX.Y.Z.tar.gz) and release.sha256 is the sha256 of THAT archive (stable/reproducible), NOT package_widget's tarball.
+- Tags are a CLOSED enum (calendar, clock, finance, github, home-assistant, media, news, sports, transit, utility, weather); generative / art / picture widgets use "media". Description <= 280 chars.
+- generate_catalog_entry validates against the real schema and rejects unknown tags. Then PR to dmellok/tesserae-widgets: entry in widgets.json (2-space indent, alphabetical by id; key order id,name,description,icon,author,tags,kind,tesserae_compat,official,screenshot_sizes,release,source) plus screenshots/<id>/lg.png (1200x800; required, CI rejects without it).
+- Screenshots MUST come from Tesserae's faithful renderer (faithful_render), never a hand-rasterized SVG or a local headless browser.
 """
 
 mcp = FastMCP("tesserae-studio", instructions=_INSTRUCTIONS)
