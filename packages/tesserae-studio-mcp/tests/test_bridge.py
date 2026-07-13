@@ -28,6 +28,7 @@ _EXPECTED_TOOLS = {
     "register_widget",
     "unregister_widget",
     "faithful_render",
+    "screenshot_widget",
     "package_widget",
     "generate_catalog_entry",
     "open_catalog_pr",

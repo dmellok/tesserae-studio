@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -268,6 +269,31 @@ async def faithful_render(widget: str, size: str = "lg", options: dict | None = 
         except Exception:  # noqa: BLE001
             return {"error": f"render failed (HTTP {resp.status_code})"}
     return Image(data=resp.content, format="png")
+
+
+@mcp.tool()
+async def screenshot_widget(
+    widget: str, out_path: str, size: str = "lg", options: dict | None = None
+) -> dict:
+    """Write a widget's faithful-render PNG (from Tesserae) to out_path on disk,
+    for catalog screenshots. lg is 1200x800. The widget must be registered and
+    Tesserae reachable. Same render path as faithful_render, just saved to a file."""
+    params = {"size": size}
+    if options:
+        params["opts"] = json.dumps(options)
+    try:
+        resp = await _http().get(f"/studio/api/render/{widget}.png", params=params)
+    except httpx.HTTPError as exc:
+        return {"error": f"cannot reach Studio ({exc})."}
+    if resp.status_code >= 400:
+        try:
+            return {"error": resp.json().get("error", resp.text), "status": resp.status_code}
+        except Exception:  # noqa: BLE001
+            return {"error": f"render failed (HTTP {resp.status_code})"}
+    out = Path(out_path).expanduser()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(resp.content)
+    return {"ok": True, "path": str(out), "bytes": len(resp.content)}
 
 
 # -- package + publish (M6) ------------------------------------------------
