@@ -142,24 +142,38 @@ Studio exposes its authoring loop as an MCP server, so an agent drives the work:
 `scaffold_widget`, `scaffold_bundle`, `duplicate_widget`, `read_file`/`write_file`,
 `lint_widget`, `mine_data_schema`, `register_widget`, `widget_data`, `faithful_render`
 (which returns the e-ink PNG as an image), `package_widget`, `generate_catalog_entry`, and
-`open_catalog_pr`. It is a thin client over the running Studio backend,
-so **start the server above first** (`uvicorn studio_server.app:app`), then point your MCP
-client at:
+`open_catalog_pr`. It is a thin client over the running Studio backend, so **start the server
+above first**, then install the bridge (on the machine your agent runs on) and point your MCP
+client at it.
+
+Install the bridge:
+
+```sh
+pip install tesserae-studio-mcp
+# or from source:
+pip install "git+https://github.com/dmellok/tesserae-studio#subdirectory=packages/tesserae-studio-mcp"
+```
+
+That gives you the `tesserae-studio-mcp` command. From Claude Code:
+
+```sh
+claude mcp add tesserae-studio -e STUDIO_URL=http://localhost:8770 -- tesserae-studio-mcp
+```
+
+Or in a Claude Desktop / Code `mcpServers` config:
 
 ```jsonc
-// Claude Desktop / Code: mcpServers config
 {
   "tesserae-studio": {
-    "command": "python",
-    "args": ["-m", "studio_server.mcp_server"],
+    "command": "tesserae-studio-mcp",
     "env": { "STUDIO_URL": "http://localhost:8770" }
   }
 }
 ```
 
-Or, with the package installed (`pip install -e server`), run the console script
-`tesserae-studio-mcp`. From Claude Code:
-`claude mcp add tesserae-studio -e STUDIO_URL=http://localhost:8770 -- tesserae-studio-mcp`.
+The bridge lives in [`packages/tesserae-studio-mcp/`](packages/tesserae-studio-mcp) (published
+to PyPI); its only real dependency is the `mcp` SDK plus `httpx`. The `tesserae-studio-mcp`
+console script also ships with the Studio server package for anyone who installed from source.
 
 ## Configuration
 
