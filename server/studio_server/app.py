@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.5.0", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.6.0", lifespan=lifespan)
     app.state.settings = settings
 
     # ---- Studio's own API -------------------------------------------------
@@ -166,8 +166,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     @app.get("/studio/api/widgets/{key}/data")
-    async def widget_data(key: str) -> JSONResponse:
-        return await app.state.source.widget_data(key)
+    async def widget_data(key: str, options: str | None = None) -> JSONResponse:
+        import json
+
+        opts: dict = {}
+        if options:
+            try:
+                parsed = json.loads(options)
+                opts = parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                opts = {}
+        return await app.state.source.widget_data(key, opts)
 
     # ---- Live-reload: stream workspace changes to the browser (SSE) -------
     def _emit(action: str, widget: str | None = None) -> None:
@@ -247,6 +256,53 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         server = _widget_files(key).get("server.py", "")
         has_admin = bool(re.search(r"def\s+blueprint\s*\(", server))
         return JSONResponse({"key": key, "has_admin": has_admin, "url": f"/plugins/{key}/"})
+
+    @app.get("/studio/api/widgets/{key}/settings")
+    async def get_widget_settings(key: str) -> JSONResponse:
+        """The widget's declared settings (from its manifest) so Studio can render
+        a settings form, plus current values from the connected Tesserae (secrets
+        redacted there) when available."""
+        import json
+
+        files = _widget_files(key)
+        manifest: dict = {}
+        if "plugin.json" in files:
+            try:
+                manifest = json.loads(files["plugin.json"])
+            except json.JSONDecodeError:
+                manifest = {}
+        schema = manifest.get("settings")
+        current: dict = {}
+        try:
+            if (await app.state.source.status())["mcp"]:
+                live = await app.state.tesserae.get_widget_settings(key)
+                current = live.get("settings") or {}
+        except Exception:  # noqa: BLE001 - no live settings endpoint / not registered
+            current = {}
+        return JSONResponse(
+            {"key": key, "settings": schema if isinstance(schema, list) else [], "current": current}
+        )
+
+    @app.post("/studio/api/widgets/{key}/settings")
+    async def set_widget_settings(key: str, spec: dict = Body(...)) -> JSONResponse:
+        """Push a widget's settings (e.g. an API key) to the connected Tesserae so
+        its fetch() runs with real credentials."""
+        values = spec.get("values")
+        if not isinstance(values, dict):
+            return JSONResponse({"error": "values must be an object"}, status_code=400)
+        try:
+            res = await app.state.tesserae.set_widget_settings(key, values)
+        except PushError as exc:
+            msg = exc.message
+            if exc.status == 404:
+                msg = (
+                    "the connected Tesserae has no widget-settings endpoint yet "
+                    "(PUT /api/mcp/widgets/<key>/settings). Update Tesserae to a build that "
+                    "exposes it, then retry."
+                )
+            return JSONResponse({"error": msg}, status_code=exc.status)
+        _emit("write", key)  # settings changed: refresh live preview data
+        return JSONResponse({"ok": True, **res})
 
     # ---- Working directory: the files Monaco edits -----------------------
     @app.get("/studio/api/files/{widget}")

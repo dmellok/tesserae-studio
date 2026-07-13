@@ -107,6 +107,24 @@ class TesseraeClient:
         )
         return self._json_or_push_error(resp)
 
+    async def get_widget_settings(self, widget_id: str) -> dict[str, Any]:
+        """A widget's stored settings (secret values redacted by Tesserae). Needs
+        the settings MCP endpoint (Tesserae 0.11x+)."""
+        resp = await self._client.get(
+            f"/api/mcp/widgets/{widget_id}/settings", headers=self._mcp_headers()
+        )
+        return self._json_or_push_error(resp)
+
+    async def set_widget_settings(self, widget_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        """Store a widget's settings (e.g. an API key) in Tesserae so its fetch()
+        runs with real credentials. Needs the settings MCP endpoint."""
+        resp = await self._client.put(
+            f"/api/mcp/widgets/{widget_id}/settings",
+            json={"settings": values},
+            headers=self._mcp_headers(),
+        )
+        return self._json_or_push_error(resp)
+
     async def list_authored(self) -> list[dict[str, Any]]:
         resp = await self._client.get(
             "/api/mcp/widgets", params={"origin": "authored"}, headers=self._mcp_headers()

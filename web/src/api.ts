@@ -11,9 +11,15 @@ export const getConfig = () => getJson<Config>("/studio/api/config");
 export const getCatalog = () => getJson<Catalog>("/studio/api/catalog");
 
 // ctx.data for the preview. Studio resolves the source: a live fetch() through
-// the connected Tesserae, or the dev-gallery sample from the disk checkout.
-export const getWidgetData = (key: string) =>
-  getJson<WidgetData>(`/studio/api/widgets/${encodeURIComponent(key)}/data`);
+// the connected Tesserae (with the cell options so the data reflects the
+// config), or the dev-gallery sample from the disk checkout.
+export const getWidgetData = (key: string, options?: Record<string, unknown>) => {
+  const q =
+    options && Object.keys(options).length
+      ? `?options=${encodeURIComponent(JSON.stringify(options))}`
+      : "";
+  return getJson<WidgetData>(`/studio/api/widgets/${encodeURIComponent(key)}/data${q}`);
+};
 
 // -- workspace file API (M1) ------------------------------------------------
 export const getFiles = (widget: string) =>
@@ -151,6 +157,30 @@ export const getWidgetAdmin = (key: string) =>
   getJson<{ key: string; has_admin: boolean; url: string }>(
     `/studio/api/widgets/${encodeURIComponent(key)}/admin`,
   );
+
+export interface WidgetSetting {
+  name: string;
+  type: string;
+  label?: string;
+  secret?: boolean;
+  default?: unknown;
+}
+
+// The widget's declared settings (e.g. an API key), plus current values from the
+// connected Tesserae (secrets redacted there).
+export const getWidgetSettings = (key: string) =>
+  getJson<{ key: string; settings: WidgetSetting[]; current: Record<string, unknown> }>(
+    `/studio/api/widgets/${encodeURIComponent(key)}/settings`,
+  );
+
+// Push settings to the connected Tesserae so the widget's fetch() runs with real
+// credentials. Throws if Tesserae has no settings endpoint (older versions).
+export const setWidgetSettings = (key: string, values: Record<string, unknown>) =>
+  getJson<{ ok: boolean }>(`/studio/api/widgets/${encodeURIComponent(key)}/settings`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ values }),
+  });
 
 // The manifest JSON schema for live plugin.json validation. Null when no disk
 // checkout is available.

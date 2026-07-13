@@ -80,14 +80,15 @@ export function setSourceChip(source: "live" | "sample" | "none" | "") {
 }
 
 async function dataFor(widget: Widget): Promise<unknown> {
-  // Invalidate cache when we may have edited the widget (version bumped).
-  const cacheKey = `${widget.key}@${state.version}`;
+  // Cache per (widget, version, options) so an edit or an options change both
+  // re-fetch, and the live data reflects the config.
+  const cacheKey = `${widget.key}@${state.version}@${JSON.stringify(state.options)}`;
   if (state.dataCache.has(cacheKey)) {
     setSourceChip((state.sourceCache.get(cacheKey) as "live" | "sample" | "none") ?? "");
     return state.dataCache.get(cacheKey);
   }
   try {
-    const res = await getWidgetData(widget.key);
+    const res = await getWidgetData(widget.key, state.options);
     state.dataCache.set(cacheKey, res.data ?? null);
     state.sourceCache.set(cacheKey, res.source);
     setSourceChip(res.source);

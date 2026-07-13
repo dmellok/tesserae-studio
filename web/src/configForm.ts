@@ -2,15 +2,23 @@
 // in state.options, and re-render the preview on change. Plus the embedded admin
 // page (a companion's blueprint()) shown in an iframe proxied through Studio.
 
-import { getWidgetAdmin, getWidgetOptions } from "./api";
-import type { WidgetOption } from "./api";
+import {
+  getWidgetAdmin,
+  getWidgetOptions,
+  getWidgetSettings,
+  setWidgetSettings,
+} from "./api";
+import type { WidgetOption, WidgetSetting } from "./api";
+import { markLocalMutation } from "./events";
 import { escapeHtml, optionDefaults } from "./logic";
 import { render } from "./preview";
 import { state } from "./state";
-import { $ } from "./ui";
+import { $, setNote } from "./ui";
 
 let schema: WidgetOption[] = [];
 let adminUrl = "";
+let settingsSchema: WidgetSetting[] = [];
+let settingsValues: Record<string, unknown> = {};
 
 function controlHtml(opt: WidgetOption): string {
   const name = opt.name;
@@ -75,24 +83,79 @@ function controlHtml(opt: WidgetOption): string {
   return `<div class="field"><label for="${id}">${label}</label>${control}</div>`;
 }
 
+function settingsHtml(): string {
+  if (!settingsSchema.length) return "";
+  const rows = settingsSchema
+    .map((s) => {
+      const dn = escapeHtml(s.name);
+      const label = escapeHtml(s.label || s.name);
+      const type = s.secret ? "password" : s.type === "number" ? "number" : "text";
+      const val = settingsValues[s.name];
+      // A stored secret comes back redacted; show a placeholder and keep it if
+      // left blank rather than overwriting with an empty value.
+      const ph = s.secret ? ' placeholder="•••• stored (leave blank to keep)"' : "";
+      const value = s.secret ? "" : escapeHtml(val == null ? "" : String(val));
+      return `<div class="field"><label for="set-${dn}">${label}</label><input type="${type}" id="set-${dn}" data-sname="${dn}"${ph} value="${value}" /></div>`;
+    })
+    .join("");
+  return (
+    `<div class="cfg-head cfg-settings-head"><span>Settings → Tesserae</span>` +
+    `<button type="button" class="btn" id="set-apply">Apply</button></div>${rows}` +
+    `<div class="cfg-empty">Pushed to the connected Tesserae so fetch() runs with real credentials.</div>`
+  );
+}
+
 function renderForm() {
   const panel = $<HTMLDivElement>("config-panel");
-  if (!schema.length) {
-    panel.innerHTML = `<div class="cfg-empty">This widget declares no cell_options.</div>`;
-    return;
-  }
-  panel.innerHTML =
-    `<div class="cfg-head"><span>Options</span><button type="button" class="btn ghost" id="cfg-reset">Reset</button></div>` +
-    schema.map(controlHtml).join("");
+  const optionsHtml = schema.length
+    ? `<div class="cfg-head"><span>Options</span><button type="button" class="btn ghost" id="cfg-reset">Reset</button></div>` +
+      schema.map(controlHtml).join("")
+    : `<div class="cfg-empty">This widget declares no cell_options.</div>`;
+  panel.innerHTML = optionsHtml + settingsHtml();
+
   panel.querySelector("#cfg-reset")?.addEventListener("click", () => {
     state.options = optionDefaults(schema);
     renderForm();
     void render();
   });
+  panel.querySelector("#set-apply")?.addEventListener("click", () => void applySettings());
+}
+
+async function applySettings() {
+  const key = state.widget?.key;
+  if (!key) return;
+  const payload: Record<string, unknown> = {};
+  for (const s of settingsSchema) {
+    const v = settingsValues[s.name];
+    if (s.secret && (v === "" || v == null)) continue; // blank secret keeps the stored one
+    payload[s.name] = v ?? "";
+  }
+  markLocalMutation();
+  const btn = $<HTMLButtonElement>("set-apply");
+  btn.disabled = true;
+  try {
+    await setWidgetSettings(key, payload);
+    state.version = Date.now(); // re-fetch live data with the new settings
+    await render();
+    setNote(`Applied settings to Tesserae for ${key}.`, "");
+  } catch (err) {
+    setNote(
+      `Settings push failed: ${err instanceof Error ? err.message : String(err)}. ` +
+        `Tesserae may not expose the settings endpoint yet.`,
+      "err",
+    );
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function onFormChange(e: Event) {
   const el = e.target as HTMLInputElement & HTMLSelectElement;
+  // Settings fields update their value only; they're pushed on Apply, not live.
+  if (el.dataset.sname) {
+    settingsValues[el.dataset.sname] = el.value;
+    return;
+  }
   const name = el.dataset.name;
   if (!name) return;
   const type = el.dataset.type;
@@ -139,12 +202,20 @@ export async function loadWidgetConfig(key: string) {
   hideAdmin();
   const adminBtn = $<HTMLButtonElement>("admin-btn");
   adminBtn.hidden = true;
+  settingsSchema = [];
+  settingsValues = {};
   try {
-    const [opts, admin] = await Promise.all([getWidgetOptions(key), getWidgetAdmin(key)]);
+    const [opts, admin, settings] = await Promise.all([
+      getWidgetOptions(key),
+      getWidgetAdmin(key),
+      getWidgetSettings(key),
+    ]);
     schema = opts.options || [];
     state.options = optionDefaults(schema);
     adminUrl = admin.url;
     adminBtn.hidden = !admin.has_admin;
+    settingsSchema = settings.settings || [];
+    settingsValues = { ...settings.current };
   } catch {
     state.options = {};
   }

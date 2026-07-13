@@ -365,6 +365,7 @@ button.pill:disabled { opacity: 0.55; cursor: default; }
   display: flex; flex-direction: column; gap: var(--t-space-3);
 }
 .cfg-head { display: flex; align-items: center; justify-content: space-between; }
+.cfg-settings-head { margin-top: var(--t-space-3); padding-top: var(--t-space-3); border-top: 1px solid var(--t-border); }
 .cfg-head span { font-weight: 600; font-size: var(--t-size-sm); color: var(--t-fg-soft); }
 .cfg-empty { color: var(--t-muted); font-size: var(--t-size-sm); }
 .cfg-check { display: flex; align-items: center; justify-content: space-between; gap: var(--t-space-3); }
