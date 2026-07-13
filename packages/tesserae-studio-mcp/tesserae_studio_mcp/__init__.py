@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP, Image
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 STUDIO_URL = os.environ.get("STUDIO_URL", "http://localhost:8770").rstrip("/")
 
@@ -229,10 +229,12 @@ async def mine_data_schema(
 
 
 @mcp.tool()
-async def widget_data(widget: str) -> dict:
+async def widget_data(widget: str, fresh: bool = False) -> dict:
     """Fetch the data a widget's server.py returns (live), or its sample.
-    Returns {data, source} with the flattened field paths."""
-    return await _json("GET", f"/studio/api/widgets/{widget}/data")
+    Returns {data, source} with the flattened field paths. fresh=true bypasses
+    Tesserae's cache so a just-edited server.py is reflected immediately."""
+    params = {"fresh": "1"} if fresh else None
+    return await _json("GET", f"/studio/api/widgets/{widget}/data", params=params)
 
 
 # -- register + preview ----------------------------------------------------
@@ -251,14 +253,25 @@ async def unregister_widget(widget: str) -> dict:
 
 
 @mcp.tool()
-async def faithful_render(widget: str, size: str = "lg", options: dict | None = None):
+async def faithful_render(
+    widget: str,
+    size: str = "lg",
+    options: dict | None = None,
+    fragment: str | None = None,
+    fresh: bool = False,
+):
     """Return the true e-ink render of a registered widget as a PNG image
-    (Tesserae's Playwright screenshot). size: xs|sm|md|lg. Pass options (cell
-    options) to render a configured state. The widget must be registered and
-    Tesserae reachable. Returns an image, or {error} on failure."""
+    (Tesserae's Playwright screenshot). size: xs|sm|md|lg. options = cell options
+    to render a configured state; fragment = render one declared fragment (default
+    the whole widget); fresh=true bypasses Tesserae's cache. The widget must be
+    registered and Tesserae reachable. Returns an image, or {error} on failure."""
     params = {"size": size}
     if options:
         params["opts"] = json.dumps(options)
+    if fragment:
+        params["fragment"] = fragment
+    if fresh:
+        params["fresh"] = "1"
     try:
         resp = await _http().get(f"/studio/api/render/{widget}.png", params=params)
     except httpx.HTTPError as exc:
@@ -273,14 +286,21 @@ async def faithful_render(widget: str, size: str = "lg", options: dict | None = 
 
 @mcp.tool()
 async def screenshot_widget(
-    widget: str, out_path: str, size: str = "lg", options: dict | None = None
+    widget: str,
+    out_path: str,
+    size: str = "lg",
+    options: dict | None = None,
+    fragment: str | None = None,
 ) -> dict:
     """Write a widget's faithful-render PNG (from Tesserae) to out_path on disk,
-    for catalog screenshots. lg is 1200x800. The widget must be registered and
-    Tesserae reachable. Same render path as faithful_render, just saved to a file."""
+    for catalog screenshots. lg is 1200x800. options = a configured state;
+    fragment = one declared fragment. The widget must be registered and Tesserae
+    reachable. Same render path as faithful_render, just saved to a file."""
     params = {"size": size}
     if options:
         params["opts"] = json.dumps(options)
+    if fragment:
+        params["fragment"] = fragment
     try:
         resp = await _http().get(f"/studio/api/render/{widget}.png", params=params)
     except httpx.HTTPError as exc:

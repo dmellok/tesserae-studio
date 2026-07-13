@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.8.0", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.8.1", lifespan=lifespan)
     app.state.settings = settings
 
     # ---- Studio's own API -------------------------------------------------
@@ -166,7 +166,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     @app.get("/studio/api/widgets/{key}/data")
-    async def widget_data(key: str, options: str | None = None) -> JSONResponse:
+    async def widget_data(
+        key: str, options: str | None = None, fresh: bool = False
+    ) -> JSONResponse:
         import json
 
         opts: dict = {}
@@ -176,7 +178,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 opts = parsed if isinstance(parsed, dict) else {}
             except json.JSONDecodeError:
                 opts = {}
-        return await app.state.source.widget_data(key, opts)
+        return await app.state.source.widget_data(key, opts, fresh=fresh)
 
     # ---- Live-reload: stream workspace changes to the browser (SSE) -------
     def _emit(action: str, widget: str | None = None) -> None:
@@ -635,10 +637,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # ---- Faithful render (dithered PNG over the authed MCP surface) -------
     @app.get("/studio/api/render/{widget}.png")
     async def render_png_endpoint(
-        widget: str, size: str = "lg", opts: str | None = None
+        widget: str,
+        size: str = "lg",
+        opts: str | None = None,
+        fragment: str | None = None,
+        fresh: bool = False,
     ) -> Response:
         try:
-            content, ctype = await app.state.tesserae.render_png(widget, size=size, opts=opts)
+            content, ctype = await app.state.tesserae.render_png(
+                widget, size=size, opts=opts, fragment=fragment, fresh=fresh
+            )
         except PushError as exc:
             return JSONResponse({"error": exc.message}, status_code=exc.status)
         return Response(content=content, media_type=ctype)

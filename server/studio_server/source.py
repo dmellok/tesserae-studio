@@ -168,14 +168,17 @@ class TesseraeSource:
         return entries
 
     # -- preview data ------------------------------------------------------
-    async def widget_data(self, key: str, options: dict | None = None) -> JSONResponse:
+    async def widget_data(
+        self, key: str, options: dict | None = None, *, fresh: bool = False
+    ) -> JSONResponse:
         """ctx.data for the interactive preview. Live MCP fetch (with the cell
-        options so the data reflects the config) when reachable; otherwise
-        Tesserae's dev-gallery sample from the disk checkout."""
+        options so the data reflects the config, ``fresh`` to bypass Tesserae's
+        cache) when reachable; otherwise Tesserae's dev-gallery sample from the
+        disk checkout."""
         status = await self.status()
         if status["mcp"]:
             try:
-                res = await self.client.widget_data(key, options)
+                res = await self.client.widget_data(key, options, fresh=fresh)
                 return JSONResponse({**res, "source": "live"})
             except Exception:  # noqa: BLE001 - fall back to sample below
                 pass

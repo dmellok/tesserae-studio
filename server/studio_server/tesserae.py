@@ -140,11 +140,21 @@ class TesseraeClient:
         return self._json_or_push_error(resp)
 
     async def render_png(
-        self, widget_id: str, *, size: str = "lg", opts: str | None = None
+        self,
+        widget_id: str,
+        *,
+        size: str = "lg",
+        opts: str | None = None,
+        fragment: str | None = None,
+        fresh: bool = False,
     ) -> tuple[bytes, str]:
         params: dict[str, str] = {"size": size}
         if opts:
             params["opts"] = opts
+        if fragment:
+            params["fragment"] = fragment
+        if fresh:
+            params["fresh"] = "1"
         resp = await self._client.get(
             f"/api/mcp/widgets/{widget_id}/render.png", params=params, headers=self._mcp_headers()
         )
@@ -163,16 +173,17 @@ class TesseraeClient:
         return resp.json()
 
     async def widget_data(
-        self, widget_id: str, options: dict[str, Any] | None = None
+        self, widget_id: str, options: dict[str, Any] | None = None, *, fresh: bool = False
     ) -> dict[str, Any]:
         """Live ``fetch()`` output + flattened ``fields`` for a widget.
 
         This is the endpoint ``mine_data_schema`` will reuse (Tesserae's
         ``_flatten_fields``); here it just feeds ``ctx.data`` for the interactive
-        preview.
-        """
+        preview. ``fresh`` bypasses Tesserae's data cache (a just-edited server.py
+        is reflected immediately)."""
         resp = await self._client.post(
             f"/api/mcp/widgets/{widget_id}/data",
+            params={"fresh": "1"} if fresh else None,
             json={"options": options or {}},
             headers=self._mcp_headers(),
         )
