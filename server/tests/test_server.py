@@ -234,6 +234,49 @@ def test_workspace_read_write_roundtrip(ws_client):
     assert "s.innerHTML" in back["content"]
 
 
+def test_edit_file_partial(ws_client):
+    ws_client.put("/studio/api/files/mywidget/client.js", json={"content": "a = 1; b = 2;"})
+    r = ws_client.post("/studio/api/edit/mywidget/client.js", json={"old": "b = 2", "new": "b = 3"})
+    assert r.json()["ok"] is True and r.json()["replacements"] == 1
+    assert (
+        ws_client.get("/studio/api/files/mywidget/client.js").json()["content"] == "a = 1; b = 3;"
+    )
+
+
+def test_edit_file_ambiguous_without_replace_all(ws_client):
+    ws_client.put("/studio/api/files/mywidget/client.js", json={"content": "x x x"})
+    r = ws_client.post("/studio/api/edit/mywidget/client.js", json={"old": "x", "new": "y"})
+    assert r.status_code == 400 and "appears 3 times" in r.json()["error"]
+    ok = ws_client.post(
+        "/studio/api/edit/mywidget/client.js",
+        json={"old": "x", "new": "y", "replace_all": True},
+    )
+    assert ok.json()["replacements"] == 3
+
+
+def test_edit_file_missing_old(ws_client):
+    ws_client.put("/studio/api/files/mywidget/client.js", json={"content": "abc"})
+    r = ws_client.post("/studio/api/edit/mywidget/client.js", json={"old": "zzz", "new": "y"})
+    assert r.status_code == 400 and "not found" in r.json()["error"]
+
+
+def test_read_reference_widget_from_disk(disk_client):
+    """read_file / list_files fall back to the disk checkout for a reference
+    widget so an agent can learn a family's pattern without leaving Studio."""
+    listing = disk_client.get("/studio/api/files/demo").json()
+    assert listing["editable"] is False
+    assert "client.js" in {f["path"] for f in listing["files"]}
+    read = disk_client.get("/studio/api/files/demo/plugin.json").json()
+    assert read["editable"] is False and '"Demo"' in read["content"]
+
+
+def test_design_asset(disk_client):
+    r = disk_client.get("/studio/api/design/spectra-widgets").json()
+    assert r["name"] == "spectra-widgets" and len(r["content"]) > 0
+    bad = disk_client.get("/studio/api/design/nope")
+    assert bad.status_code == 404
+
+
 def test_workspace_asset_shadows_plugin(ws_client):
     ws_client.put(
         "/studio/api/files/mywidget/client.js",

@@ -20,6 +20,8 @@ _EXPECTED_TOOLS = {
     "list_files",
     "read_file",
     "write_file",
+    "edit_file",
+    "design_system",
     "lint_widget",
     "mine_data_schema",
     "widget_data",

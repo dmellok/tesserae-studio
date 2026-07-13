@@ -40,16 +40,32 @@ def humanize(key: str) -> str:
     return " ".join(out)
 
 
+# (unit, key tokens that imply it). Matched against whole tokens, not
+# substrings, so 'window_days' no longer reads as 'wind' -> km/h.
+_UNIT_TOKENS: tuple[tuple[str, frozenset[str]], ...] = (
+    ("%", frozenset({"humidity", "chance", "probability", "percent", "pct"})),
+    ("hPa", frozenset({"pressure"})),
+    ("km/h", frozenset({"wind", "gust"})),
+    ("°", frozenset({"temp", "temperature", "feels", "apparent", "high", "low"})),
+)
+
+
+def _key_tokens(key: str) -> set[str]:
+    """Lowercased word tokens of a key, splitting snake/kebab and camelCase:
+    'window_days' -> {window, days}, 'windSpeed' -> {wind, speed}."""
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", key.replace("_", " ").replace("-", " "))
+    return {t for t in spaced.lower().split() if t}
+
+
 def infer_unit(key: str, sample: Any) -> str | None:
-    k = key.lower()
-    if any(t in k for t in ("humidity", "chance", "probability", "percent", "_pct")):
-        return "%"
-    if "pressure" in k:
-        return "hPa"
-    if any(t in k for t in ("wind", "gust", "speed")):
-        return "km/h"
-    if k in ("temp", "temperature", "feels", "high", "low", "apparent") or k.endswith("_temp"):
-        return "°"
+    # Units only make sense on a number; a plain int like window_days=7 or a
+    # boolean must never get stamped with one.
+    if not (isinstance(sample, (int, float)) and not isinstance(sample, bool)):
+        return None
+    tokens = _key_tokens(key)
+    for unit, signals in _UNIT_TOKENS:
+        if tokens & signals:
+            return unit
     return None
 
 

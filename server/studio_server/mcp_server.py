@@ -15,6 +15,7 @@ Run (stdio): ``python -m studio_server.mcp_server``
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
@@ -33,8 +34,13 @@ BUILD LOOP
 2. Read the generated files to learn the skeleton, then edit with write_file (whole-file overwrite, no partial edit).
 3. lint_widget until 0 errors.
 4. register_widget. A new widget serves its client.js immediately on the in-process reload, no restart (Tesserae reads the plugin registry fresh per request as of the plugin-asset fix). ONE EXCEPTION: a widget that declares an admin blueprint() still needs a single Tesserae restart to wire its admin route, so batch those, register all of them, then ask the user for one restart. Widget UPDATES (already-registered) never need a restart.
-5. faithful_render(size=xs|sm|md|lg). For live data / all sizes, build a canvas via the tesserae MCP and render_preview.
+5. faithful_render(size=xs|sm|md|lg, options={...}). Pass options to QA a configured state. Base font scales with container WIDTH, so also check extreme aspect ratios (wide-short cells overflow in ways the xs/sm size tokens don't reveal), not just size. For live data across all sizes/fragments, build a canvas via the tesserae MCP and render_preview.
 6. mine_data_schema(apply=true) once the data shape is final.
+
+LEARN FROM SIBLINGS
+- read_file / list_files also work on the connected checkout's REFERENCE widgets (e.g. ha_core, ha_history). Read a family's server.py + client.js to copy its data pattern and house style, don't guess.
+- design_system(name) returns the Spectra house-style CSS: spectra-widgets (widget classes like .w-title / list rows / .is-zebra), spectra-tokens (--space-*, --fs-*), spectra-styles. Match these on the first pass.
+- edit_file(widget, path, old, new) makes a one-line change without resending the whole file.
 
 DIAGNOSING A FAILED / BLANK RENDER (do this before re-editing client.js)
 - Confirm the server side first with probe_widget_data: if it returns your real output (or your friendly error), server.py is loaded, so the problem is in client.js, fix the JS.
@@ -43,7 +49,7 @@ DIAGNOSING A FAILED / BLANK RENDER (do this before re-editing client.js)
 HARD RULES
 - Lint: data_schema.fields[].type must be num | str | arr (never "int"). server.py must NEVER use `raise`, return {"error": "..."} or thread (value, error) tuples.
 - Secrets (API keys) = settings[] with "secret": true, settings.get(...). Per-cell config = cell_options[], options.get(...).
-- Egress: requires: ["network:<exact-host>", "settings:plugin"]. Cache in ctx["data_dir"]. Friendly error strings (they render verbatim).
+- Egress: an own-host widget declares requires: ["network:<exact-host>", "settings:plugin"], caches in ctx["data_dir"], and returns friendly error strings (they render verbatim). EXCEPTION: a widget that reads a shared family core (e.g. ha_core via current_app.config["PLUGIN_REGISTRY"].get("ha_core")) OMITS requires and declares no host, the core owns egress. Mirror the family; do not add network requires.
 - client.js: default export render(shadow, ctx); paint ONLY from Spectra semantic tokens (--surface, --surface-sunken, --text-primary/-secondary/-muted, --accent-1..6 + --accent-*-soft); cqmin / container queries; ph-bold icons; no borders, no animations, no client-side fetch; idempotent innerHTML; link /static/style/spectra-widgets.css. fragments[] and branch on ctx.cell.fragment for canvas-placeable pieces.
 
 DATA REALISM (before coding)
@@ -158,14 +164,36 @@ async def list_files(widget: str) -> dict:
 
 @mcp.tool()
 async def read_file(widget: str, path: str) -> dict:
-    """Read one file from a workspace widget (e.g. path='client.js')."""
+    """Read one file from a widget (e.g. path='client.js'). Works on workspace
+    widgets and, read-only, on the connected checkout's reference widgets (e.g.
+    ha_core) so you can learn a family's pattern + house style."""
     return await _json("GET", f"/studio/api/files/{widget}/{path}")
 
 
 @mcp.tool()
 async def write_file(widget: str, path: str, content: str) -> dict:
-    """Write one file in a workspace widget. Run lint_widget after editing."""
+    """Write one file in a workspace widget (whole-file). For a small change
+    prefer edit_file. Run lint_widget after editing."""
     return await _json("PUT", f"/studio/api/files/{widget}/{path}", json={"content": content})
+
+
+@mcp.tool()
+async def edit_file(widget: str, path: str, old: str, new: str, replace_all: bool = False) -> dict:
+    """Replace an exact substring in one file, instead of resending the whole
+    file. `old` must be unique unless replace_all=true. Run lint_widget after."""
+    return await _json(
+        "POST",
+        f"/studio/api/edit/{widget}/{path}",
+        json={"old": old, "new": new, "replace_all": replace_all},
+    )
+
+
+@mcp.tool()
+async def design_system(name: str = "spectra-widgets") -> dict:
+    """Read a Spectra house-style stylesheet so you match the widget conventions
+    (classes + tokens) on the first pass instead of reverse-engineering siblings.
+    name: spectra-widgets | spectra-styles | spectra-tokens | base | forms."""
+    return await _json("GET", f"/studio/api/design/{name}")
 
 
 # -- validate + data -------------------------------------------------------
@@ -216,12 +244,16 @@ async def unregister_widget(widget: str) -> dict:
 
 
 @mcp.tool()
-async def faithful_render(widget: str, size: str = "lg"):
+async def faithful_render(widget: str, size: str = "lg", options: dict | None = None):
     """Return the true e-ink render of a registered widget as a PNG image
-    (Tesserae's Playwright screenshot). size: xs|sm|md|lg. The widget must be
-    registered and Tesserae reachable. Returns an image, or {error} on failure."""
+    (Tesserae's Playwright screenshot). size: xs|sm|md|lg. Pass options (cell
+    options) to render a configured state. The widget must be registered and
+    Tesserae reachable. Returns an image, or {error} on failure."""
+    params = {"size": size}
+    if options:
+        params["opts"] = json.dumps(options)
     try:
-        resp = await _http().get(f"/studio/api/render/{widget}.png", params={"size": size})
+        resp = await _http().get(f"/studio/api/render/{widget}.png", params=params)
     except httpx.HTTPError as exc:
         return {"error": f"cannot reach Studio ({exc})."}
     if resp.status_code >= 400:

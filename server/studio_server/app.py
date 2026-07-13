@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.6.0", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.7.0", lifespan=lifespan)
     app.state.settings = settings
 
     # ---- Studio's own API -------------------------------------------------
@@ -305,20 +305,70 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"ok": True, **res})
 
     # ---- Working directory: the files Monaco edits -----------------------
+    # A read-only reference widget on the disk checkout (e.g. ha_core), so the
+    # agent can learn a family's connection pattern + house style without
+    # leaving Studio.
+    _REF_LANG = {
+        ".js": "javascript",
+        ".json": "json",
+        ".py": "python",
+        ".css": "css",
+        ".html": "html",
+        ".md": "markdown",
+    }
+
+    def _reference_dir(widget: str) -> Path | None:
+        path = settings.tesserae_path
+        if not path:
+            return None
+        plugins = (path / "plugins").resolve()
+        d = (plugins / widget).resolve()
+        if plugins in d.parents and (d / "plugin.json").is_file():
+            return d
+        return None
+
     @app.get("/studio/api/files/{widget}")
     async def list_files(widget: str) -> JSONResponse:
         try:
-            return JSONResponse({"widget": widget, "files": app.state.workspace.list_files(widget)})
+            files = app.state.workspace.list_files(widget)
+            return JSONResponse({"widget": widget, "files": files, "editable": True})
         except WorkspaceError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=404)
+            d = _reference_dir(widget)
+            if d is None:
+                return JSONResponse({"error": str(exc)}, status_code=404)
+            files = [
+                {
+                    "path": f.relative_to(d).as_posix(),
+                    "size": f.stat().st_size,
+                    "editable": False,
+                    "language": _REF_LANG.get(f.suffix, "plaintext"),
+                }
+                for f in sorted(d.rglob("*"))
+                if f.is_file() and f.suffix != ".pyc" and "__pycache__" not in f.parts
+            ]
+            return JSONResponse({"widget": widget, "files": files, "editable": False})
 
     @app.get("/studio/api/files/{widget}/{relpath:path}")
     async def read_file(widget: str, relpath: str) -> JSONResponse:
         try:
             content = app.state.workspace.read_file(widget, relpath)
+            return JSONResponse(
+                {"widget": widget, "path": relpath, "content": content, "editable": True}
+            )
         except WorkspaceError as exc:
+            d = _reference_dir(widget)
+            if d is not None:
+                target = (d / relpath).resolve()
+                if d in target.parents and target.is_file():
+                    return JSONResponse(
+                        {
+                            "widget": widget,
+                            "path": relpath,
+                            "content": target.read_text(),
+                            "editable": False,
+                        }
+                    )
             return JSONResponse({"error": str(exc)}, status_code=404)
-        return JSONResponse({"widget": widget, "path": relpath, "content": content})
 
     @app.put("/studio/api/files/{widget}/{relpath:path}")
     async def write_file(
@@ -330,6 +380,58 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=400)
         _emit("write", widget)
         return JSONResponse({"ok": True, **result})
+
+    @app.post("/studio/api/edit/{widget}/{relpath:path}")
+    async def edit_file(widget: str, relpath: str, spec: dict = Body(...)) -> JSONResponse:
+        """Replace an exact substring in one file (partial edit), so a one-line
+        tweak doesn't resend the whole file. ``old`` must be unique unless
+        ``replace_all`` is set."""
+        old, new = spec.get("old"), spec.get("new")
+        if not isinstance(old, str) or not isinstance(new, str):
+            return JSONResponse({"error": "old and new (strings) are required"}, status_code=400)
+        try:
+            content = app.state.workspace.read_file(widget, relpath)
+        except WorkspaceError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+        count = content.count(old)
+        if count == 0:
+            return JSONResponse({"error": f"old string not found in {relpath}"}, status_code=400)
+        if count > 1 and not spec.get("replace_all"):
+            return JSONResponse(
+                {
+                    "error": f"old string appears {count} times in {relpath}; add surrounding "
+                    "context to make it unique, or pass replace_all: true"
+                },
+                status_code=400,
+            )
+        updated = (
+            content.replace(old, new) if spec.get("replace_all") else content.replace(old, new, 1)
+        )
+        try:
+            result = app.state.workspace.write_file(widget, relpath, updated)
+        except WorkspaceError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        _emit("write", widget)
+        return JSONResponse(
+            {"ok": True, "replacements": count if spec.get("replace_all") else 1, **result}
+        )
+
+    # ---- Design system: the Spectra house style (bundled), so an agent can
+    # match the widget conventions (.w-title, list rows, tokens) on the first
+    # pass instead of reverse-engineering sibling source.
+    _DESIGN_FILES = ("spectra-widgets", "spectra-styles", "spectra-tokens", "base", "forms")
+
+    @app.get("/studio/api/design/{name}")
+    async def design_asset(name: str) -> JSONResponse:
+        if name not in _DESIGN_FILES:
+            return JSONResponse(
+                {"error": f"unknown design asset {name!r}; one of {list(_DESIGN_FILES)}"},
+                status_code=404,
+            )
+        f = Path(__file__).resolve().parent / "assets" / "static" / "style" / f"{name}.css"
+        if not f.is_file():
+            return JSONResponse({"error": f"{name}.css unavailable"}, status_code=404)
+        return JSONResponse({"name": name, "content": f.read_text()})
 
     # ---- Scaffold a new widget / duplicate an existing one ---------------
     @app.post("/studio/api/scaffold")

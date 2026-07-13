@@ -178,8 +178,18 @@ export default function (shadow, ctx) {{
 def _server_py() -> str:
     return '''"""Server for the scaffolded widget. Runs on the Tesserae side, never the
 client. Return a JSON-serialisable dict, or {"error": "friendly message"};
-never raise. Declare egress in plugin.json requires: ["network:host"] and cache
-polite fetches in ctx["data_dir"] once you add a real host."""
+never raise.
+
+Two data patterns:
+  * Own HTTP source: fetch with app.plugin_http.fetch_json / fetch_text, declare
+    requires: ["network:<exact-host>", "settings:plugin"] in plugin.json, read
+    secrets from settings.get(...), and cache polite fetches in ctx["data_dir"].
+  * Shared data plugin (e.g. Home Assistant): read from a family core instead of
+    fetching, e.g. from flask import current_app;
+    core = current_app.config["PLUGIN_REGISTRY"].get("ha_core"). These widgets
+    omit requires and declare no host (the core owns the egress). Mirror the
+    family's server.py rather than the own-host pattern above.
+"""
 
 from __future__ import annotations
 
@@ -189,7 +199,7 @@ from typing import Any
 def fetch(
     options: dict[str, Any], settings: dict[str, Any], *, ctx: dict[str, Any]
 ) -> dict[str, Any]:
-    # Replace with a real fetch via app.plugin_http.fetch_json / fetch_text.
+    # Replace with a real fetch (own host) or a read from a shared core plugin.
     return {"value": 0}
 '''
 

@@ -30,8 +30,14 @@ def test_leaf_key_and_humanize():
 def test_unit_inference():
     assert infer_unit("humidity", 58) == "%"
     assert infer_unit("wind_speed", 12.5) == "km/h"
+    assert infer_unit("windSpeed", 12.5) == "km/h"
     assert infer_unit("temp", 19) == "°"
     assert infer_unit("cond", "x") is None
+    # Token match, not substring: 'window_days' must not read as 'wind'.
+    assert infer_unit("window_days", 7) is None
+    # Units are numbers-only: never stamp a bool or a plain string.
+    assert infer_unit("active", True) is None
+    assert infer_unit("speed", "fast") is None
 
 
 def test_scalar_and_pluck_classification():
