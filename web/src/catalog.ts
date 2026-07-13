@@ -4,6 +4,7 @@
 
 import { getCatalog, scaffoldBundle, scaffoldWidget } from "./api";
 import { loadWidgetConfig } from "./configForm";
+import { markLocalMutation } from "./events";
 import { parseMembers } from "./logic";
 import { render } from "./preview";
 import { state } from "./state";
@@ -56,6 +57,7 @@ export async function refreshCatalog(keepKey?: string) {
 }
 
 async function createWidget(spec: { name: string; archetype: string; server: boolean }) {
+  markLocalMutation();
   try {
     const res = await scaffoldWidget(spec);
     await refreshCatalog(res.key);
@@ -72,6 +74,7 @@ async function createBundle(spec: {
   members: Array<{ name: string }>;
   admin: boolean;
 }) {
+  markLocalMutation();
   try {
     const res = await scaffoldBundle(spec);
     await refreshCatalog(res.members[0] ?? res.core);

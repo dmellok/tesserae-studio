@@ -7,6 +7,7 @@ import { initCatalog, refreshCatalog, selectWidget } from "./catalog";
 import { initConfig } from "./configForm";
 import { refreshHealth } from "./connection";
 import { getEditor, initEditor } from "./editorInstance";
+import { initEvents } from "./events";
 import { initLint } from "./lintPanel";
 import { initPreview } from "./preview";
 import { initSettings } from "./settings";
@@ -27,6 +28,7 @@ initConfig();
 initWorkspace();
 initLint();
 initCatalog();
+initEvents(); // live-reload on workspace changes (agent or UI)
 
 async function boot() {
   await refreshHealth();

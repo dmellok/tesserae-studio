@@ -11,10 +11,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Body, FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import SIZE_DIMENSIONS, Settings, ha_options_debug
+from .events import EventBus
 from .flatten import flatten_fields
 from .linter import lint_widget
 from .mine import MineError, apply_to_manifest, mine
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI):
     app.state.tesserae = client
     app.state.source = TesseraeSource(settings.tesserae_path, client)
     app.state.workspace = Workspace(settings.workdir)
+    app.state.events = EventBus()
     try:
         yield
     finally:
@@ -167,6 +169,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def widget_data(key: str) -> JSONResponse:
         return await app.state.source.widget_data(key)
 
+    # ---- Live-reload: stream workspace changes to the browser (SSE) -------
+    def _emit(action: str, widget: str | None = None) -> None:
+        """Announce a workspace change so connected browsers live-reload. Called
+        after any mutation, whether it came from the UI or the MCP tools."""
+        bus = getattr(app.state, "events", None)
+        if bus is not None:
+            bus.publish({"action": action, "widget": widget})
+
+    @app.get("/studio/api/events")
+    async def events(request: Request) -> StreamingResponse:
+        import json
+
+        bus: EventBus = app.state.events
+        queue = bus.subscribe()
+
+        async def stream():
+            try:
+                yield ": connected\n\n"
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    try:
+                        ev = await asyncio.wait_for(queue.get(), timeout=20)
+                        yield f"data: {json.dumps(ev)}\n\n"
+                    except TimeoutError:
+                        yield ": ping\n\n"  # keep the connection alive
+            finally:
+                bus.unsubscribe(queue)
+
+        return StreamingResponse(
+            stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     def _widget_files(key: str) -> dict[str, str]:
         """A widget's text files, workspace-first then the disk checkout, so the
         config form + admin detection work for authored and reference widgets."""
@@ -235,6 +272,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result = app.state.workspace.write_file(widget, relpath, content)
         except WorkspaceError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+        _emit("write", widget)
         return JSONResponse({"ok": True, **result})
 
     # ---- Scaffold a new widget / duplicate an existing one ---------------
@@ -253,6 +291,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             result = app.state.workspace.create_widget(key, files)
         except (ScaffoldError, WorkspaceError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+        _emit("scaffold", key)
         return JSONResponse({"ok": True, **result})
 
     @app.post("/studio/api/scaffold-bundle")
@@ -280,6 +319,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ws.create_widget(fid, files)
         except WorkspaceError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+        _emit("scaffold", member_ids[0] if member_ids else core_id)
         return JSONResponse(
             {"ok": True, "core": core_id, "members": member_ids, "folders": list(folders)}
         )
@@ -309,6 +349,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             written = copy_widget(src_dir, dest)
         except (ScaffoldError, WorkspaceError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
+        _emit("scaffold", key)
         return JSONResponse({"ok": True, "key": key, "files": written})
 
     # ---- Register a workspace widget with Tesserae (symlink) -------------
@@ -403,8 +444,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 sync_widget(settings.marketplace_dir, app.state.workspace.root, widget)
             except SyncError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
+            _emit("register", widget)
             return JSONResponse({"ok": True, "method": "symlink", **(await _sync_state(widget))})
         if method == "push":
+            _emit("register", widget)
             return await _push(widget, reload)
         return JSONResponse(
             {
@@ -422,11 +465,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 unsync_widget(settings.marketplace_dir, app.state.workspace.root, widget)
             except SyncError as exc:
                 return JSONResponse({"error": str(exc)}, status_code=400)
+            _emit("register", widget)
             return JSONResponse({"ok": True, "method": "symlink", **(await _sync_state(widget))})
         try:
             res = await app.state.tesserae.uninstall_widget(widget)
         except PushError as exc:
             return JSONResponse({"error": exc.message}, status_code=exc.status)
+        _emit("register", widget)
         return JSONResponse({**res, "method": "push"})
 
     # ---- Faithful render (dithered PNG over the authed MCP surface) -------
@@ -538,6 +583,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     )
             ws.write_file(widget, "plugin.json", json.dumps(merged, indent=2) + "\n")
             applied = True
+            _emit("write", widget)
 
         return JSONResponse(
             {

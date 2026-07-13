@@ -15,6 +15,7 @@ import type { MineResult } from "./api";
 import { refreshCatalog, selectWidget } from "./catalog";
 import type { OpenFile } from "./editor";
 import { getEditor } from "./editorInstance";
+import { markLocalMutation } from "./events";
 import { escapeHtml, mineDiffBits } from "./logic";
 import { isWidgetKind, render } from "./preview";
 import { runLint } from "./lintPanel";
@@ -125,6 +126,7 @@ async function save() {
   if (!widget?.editable || !state.activeFile) return;
   const editor = getEditor();
   const path = state.activeFile;
+  markLocalMutation();
   try {
     await writeFile(widget.key, path, editor.value(path));
   } catch (err) {
@@ -171,6 +173,7 @@ function renderRegister(widget: Widget) {
 async function toggleRegister() {
   const w = state.widget;
   if (!w?.editable) return;
+  markLocalMutation();
   const registerBtn = $<HTMLButtonElement>("register-btn");
   const registered = w.registered || w.synced;
   registerBtn.disabled = true;
@@ -248,6 +251,7 @@ async function applyMine() {
   const w = state.widget;
   if (!w?.editable) return;
   const editor = getEditor();
+  markLocalMutation();
   try {
     const res = await mineSchema(w.key, { source: "auto", apply: true });
     // Refresh plugin.json in the editor without losing edits to other files.
@@ -266,6 +270,7 @@ async function applyMine() {
 async function duplicate(widget: Widget) {
   const name = window.prompt(`Duplicate "${widget.name}" into your workspace as:`, `${widget.name} copy`);
   if (!name) return;
+  markLocalMutation();
   try {
     const res = await duplicateWidget(widget.key, name);
     await refreshCatalog(res.key);
