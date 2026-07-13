@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tesserae-studio-mcp"
+version = "0.1.0"
+description = "MCP bridge for Tesserae Studio: author e-ink widgets with an AI agent."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "Kayden D'Mello" }]
+keywords = ["mcp", "tesserae", "e-ink", "widget", "ai"]
+dependencies = [
+    # The Model Context Protocol SDK (FastMCP) and a small async HTTP client.
+    # Deliberately nothing heavy: this is a thin client over Studio's REST API,
+    # not the Studio server (no FastAPI / uvicorn here).
+    "mcp>=1.2,<2",
+    "httpx>=0.27",
+]
+
+[project.urls]
+Homepage = "https://github.com/dmellok/tesserae-studio/tree/main/packages/tesserae-studio-mcp"
+Studio = "https://github.com/dmellok/tesserae-studio"
+
+[project.scripts]
+tesserae-studio-mcp = "tesserae_studio_mcp:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.15,<0.16",
+]
+
+[tool.setuptools.packages.find]
+include = ["tesserae_studio_mcp*"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "double"
+
+# Anchor pytest's rootdir here so it does NOT climb to the repo-root / server
+# config (which imports the FastAPI app). Without this, running the bridge's
+# tests inside the monorepo pulls in the server's conftest and fails on a
+# missing fastapi/uvicorn in the bridge's thin environment.
+[tool.pytest.ini_options]
+testpaths = ["tests"]

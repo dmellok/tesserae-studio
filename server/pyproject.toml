@@ -42,6 +42,8 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# The standalone MCP bridge under packages/ carries its own ruff config + CI.
+extend-exclude = ["packages"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
