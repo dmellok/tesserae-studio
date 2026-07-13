@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tesserae Studio brand mark. The Tesserae mosaic with the two quadrants
+  (top-right + bottom-left) outlined instead of filled, marking the authoring
+  tool. 256x256 viewBox; outer rounded square, gradient --t-accent -> -hover.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="tess-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d8c7e"/>
+      <stop offset="1" stop-color="#0a6f63"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="256" height="256" rx="72" ry="72" fill="url(#tess-bg)"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="16" stroke-linejoin="round">
+    <path d="M128 55 H174 A27 27 0 0 1 201 82 V128 H128 Z"/>
+    <path d="M128 128 V201 H82 A27 27 0 0 1 55 174 V128 Z"/>
+  </g>
+</svg>
