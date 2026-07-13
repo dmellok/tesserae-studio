@@ -46,6 +46,11 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+# The MCP server ships a long-form agent instructions block (prose lines meant to
+# read as sentences), so line-length doesn't apply there.
+[tool.ruff.lint.per-file-ignores]
+"studio_server/mcp_server.py" = ["E501"]
+
 # FastAPI's dependency-injection defaults (Body/Depends/Query) are calls in
 # argument defaults by design; they are not the B008 mutable-default hazard.
 [tool.ruff.lint.flake8-bugbear]

@@ -23,7 +23,46 @@ from mcp.server.fastmcp import FastMCP, Image
 
 STUDIO_URL = os.environ.get("STUDIO_URL", "http://localhost:8770").rstrip("/")
 
-mcp = FastMCP("tesserae-studio")
+# Sent to the connecting agent at handshake so it drives the build loop the way
+# that actually works against Tesserae (these rules were learned the hard way).
+_INSTRUCTIONS = """\
+You build Tesserae widgets through these tools (mcp__tesserae-studio__*). Follow this loop and these rules.
+
+BUILD LOOP
+1. scaffold_widget(name, archetype, server=true). Archetypes: stat|list|chart|status|weather|calendar|image.
+2. Read the generated files to learn the skeleton, then edit with write_file (whole-file overwrite, no partial edit).
+3. lint_widget until 0 errors.
+4. register_widget.
+5. RESTART GATE (new widgets only). A brand-new pushed widget's client.js is NOT served until Tesserae is fully RESTARTED, register_widget only does an in-process reload, which hot-loads server.py but does not wire the static-asset route for a new plugin id. You cannot restart Tesserae yourself.
+   ROOT CAUSE + PERMANENT FIX (prefer this): register_routes() in the tesserae repo app/plugin_loader.py closes over the plugin registry captured at startup, while in-process reload swaps a new registry into app.config["PLUGIN_REGISTRY"]. In plugin_asset(), read the registry fresh per request instead of the closed-over one:
+       registry = current_app.config["PLUGIN_REGISTRY"]   # was: the closed-over registry
+       plugin = registry.plugins.get(plugin_id)
+   After that one-line change ships to the running Tesserae, new pushed widgets serve client.js immediately on in-process reload and this whole gate disappears. If you have access to the Tesserae source/repo, offer to apply it (PR to dmellok/tesserae) the first time you hit this.
+   INTERIM (until that fix is live): after the first register of a new widget, PAUSE and ask the user to restart Tesserae, then continue. Batch it, register all new widgets first, then ask for ONE restart. Widget UPDATES (already-registered) skip the gate entirely: edits serve immediately, just re-register.
+6. faithful_render(size=xs|sm|md|lg). For live data / all sizes, build a canvas via the tesserae MCP and render_preview.
+7. mine_data_schema(apply=true) once the data shape is final.
+
+DIAGNOSING A FAILED / BLANK RENDER (do this before touching client.js)
+- Symptom "Failed to fetch dynamically imported module .../client.js" or a blank cell on a NEW widget = the RESTART GATE, not a bug. Confirm with probe_widget_data: if it returns your real server output (or your friendly error), server.py is loaded and only the static asset is 404ing, apply the permanent fix or ask for a restart; do NOT re-edit the JS.
+- Only if probe shows something inconsistent, or the widget is already-registered, treat it as a genuine client.js / JS error.
+
+HARD RULES
+- Lint: data_schema.fields[].type must be num | str | arr (never "int"). server.py must NEVER use `raise`, return {"error": "..."} or thread (value, error) tuples.
+- Secrets (API keys) = settings[] with "secret": true, settings.get(...). Per-cell config = cell_options[], options.get(...).
+- Egress: requires: ["network:<exact-host>", "settings:plugin"]. Cache in ctx["data_dir"]. Friendly error strings (they render verbatim).
+- client.js: default export render(shadow, ctx); paint ONLY from Spectra semantic tokens (--surface, --surface-sunken, --text-primary/-secondary/-muted, --accent-1..6 + --accent-*-soft); cqmin / container queries; ph-bold icons; no borders, no animations, no client-side fetch; idempotent innerHTML; link /static/style/spectra-widgets.css. fragments[] and branch on ctx.cell.fragment for canvas-placeable pieces.
+
+DATA REALISM (before coding)
+- Check what the API returns for a plain key. If a requested stat needs OAuth/analytics or history the API doesn't expose, say so and adapt (self-track snapshots in data_dir for deltas; swap an impossible metric for an honest one). Flag substitutions.
+
+AUTHORITATIVE SPEC: the tesserae repo docs/widgets.md + docs/dev/writing-a-widget.md.
+
+SUBMISSION (community catalog, keyed/third-party widgets)
+- Own public repo tesserae-widget-<name>, plugin.json at repo ROOT, tag vX.Y.Z, tarball sha256.
+- generate_catalog_entry (validate), then PR to dmellok/tesserae-widgets: entry in widgets.json (2-space indent, alphabetical by id; key order id,name,description,icon,author,tags,kind,tesserae_compat,official,screenshot_sizes,release,source) plus screenshots/<id>/lg.png (required, CI rejects without it). Tags are a closed enum. Description <= 280 chars.
+"""
+
+mcp = FastMCP("tesserae-studio", instructions=_INSTRUCTIONS)
 
 _client: httpx.AsyncClient | None = None
 
