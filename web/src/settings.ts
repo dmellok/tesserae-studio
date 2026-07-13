@@ -9,6 +9,7 @@ export function initSettings() {
   const dialog = $<HTMLDialogElement>("mcp-dialog");
   const cfg = mcpClientConfig(window.location.origin);
   $<HTMLElement>("mcp-url").textContent = cfg.studioUrl;
+  $<HTMLElement>("mcp-install").textContent = cfg.install;
   $<HTMLElement>("mcp-cli").textContent = cfg.cli;
   $<HTMLElement>("mcp-json").textContent = cfg.desktopJson;
 

@@ -86,9 +86,12 @@ export function optionDefaults(
 
 export interface McpClientConfig {
   studioUrl: string;
+  install: string;
   cli: string;
   desktopJson: string;
 }
+
+const MCP_PKG = "git+https://github.com/dmellok/tesserae-studio.git#subdirectory=server";
 
 // The details for pointing an MCP client (Claude Code / Desktop) at this Studio.
 // Studio's MCP server is a thin client over the backend, so it just needs the
@@ -96,6 +99,11 @@ export interface McpClientConfig {
 // Studio is deployed.
 export function mcpClientConfig(origin: string): McpClientConfig {
   const studioUrl = origin.replace(/\/+$/, "");
+  // pipx puts the tesserae-studio-mcp command on PATH; the uvx line runs it with
+  // no install if you have uv.
+  const install =
+    `pipx install "${MCP_PKG}"\n` +
+    `# or, no install (needs uv):  uvx --from "${MCP_PKG}" tesserae-studio-mcp`;
   const cli = `claude mcp add tesserae-studio -e STUDIO_URL=${studioUrl} -- tesserae-studio-mcp`;
   const desktopJson = JSON.stringify(
     {
@@ -109,7 +117,7 @@ export function mcpClientConfig(origin: string): McpClientConfig {
     null,
     2,
   );
-  return { studioUrl, cli, desktopJson };
+  return { studioUrl, install, cli, desktopJson };
 }
 
 // Parse the bundle dialog's "one member per line" textarea into member specs.

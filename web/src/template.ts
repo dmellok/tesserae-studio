@@ -25,9 +25,11 @@ export const APP_HTML = `
         <label for="mcp-url">Studio URL</label>
         <div class="copy-row"><code class="mcp-snippet" id="mcp-url"></code><button type="button" class="btn ghost" data-copy="mcp-url">Copy</button></div>
       </div>
-      <label class="mcp-label">Claude Code</label>
+      <label class="mcp-label">1. Install the MCP server (on the machine running your agent)</label>
+      <div class="copy-row"><pre class="mcp-snippet" id="mcp-install"></pre><button type="button" class="btn ghost" data-copy="mcp-install">Copy</button></div>
+      <label class="mcp-label">2. Claude Code</label>
       <div class="copy-row"><pre class="mcp-snippet" id="mcp-cli"></pre><button type="button" class="btn ghost" data-copy="mcp-cli">Copy</button></div>
-      <label class="mcp-label">Claude Desktop (config file)</label>
+      <label class="mcp-label">3. Claude Desktop (config file)</label>
       <div class="copy-row"><pre class="mcp-snippet" id="mcp-json"></pre><button type="button" class="btn ghost" data-copy="mcp-json">Copy</button></div>
       <p class="d-hint">The <code>tesserae-studio-mcp</code> command ships with the Studio install (<code>pip install -e server</code>). No install? Use <code>command: "python"</code>, <code>args: ["-m", "studio_server.mcp_server"]</code>.</p>
       <div class="dialog-actions">

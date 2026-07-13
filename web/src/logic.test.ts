@@ -163,6 +163,8 @@ describe("mcpClientConfig", () => {
       command: "tesserae-studio-mcp",
       env: { STUDIO_URL: "http://homeassistant.local:8770" },
     });
+    expect(cfg.install).toContain("pipx install");
+    expect(cfg.install).toContain("subdirectory=server");
   });
 
   it("strips a trailing slash from the origin", () => {
