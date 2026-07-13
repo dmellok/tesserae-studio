@@ -32,19 +32,13 @@ BUILD LOOP
 1. scaffold_widget(name, archetype, server=true). Archetypes: stat|list|chart|status|weather|calendar|image.
 2. Read the generated files to learn the skeleton, then edit with write_file (whole-file overwrite, no partial edit).
 3. lint_widget until 0 errors.
-4. register_widget.
-5. RESTART GATE (new widgets only). A brand-new pushed widget's client.js is NOT served until Tesserae is fully RESTARTED, register_widget only does an in-process reload, which hot-loads server.py but does not wire the static-asset route for a new plugin id. You cannot restart Tesserae yourself.
-   ROOT CAUSE + PERMANENT FIX (prefer this): register_routes() in the tesserae repo app/plugin_loader.py closes over the plugin registry captured at startup, while in-process reload swaps a new registry into app.config["PLUGIN_REGISTRY"]. In plugin_asset(), read the registry fresh per request instead of the closed-over one:
-       registry = current_app.config["PLUGIN_REGISTRY"]   # was: the closed-over registry
-       plugin = registry.plugins.get(plugin_id)
-   After that one-line change ships to the running Tesserae, new pushed widgets serve client.js immediately on in-process reload and this whole gate disappears. If you have access to the Tesserae source/repo, offer to apply it (PR to dmellok/tesserae) the first time you hit this.
-   INTERIM (until that fix is live): after the first register of a new widget, PAUSE and ask the user to restart Tesserae, then continue. Batch it, register all new widgets first, then ask for ONE restart. Widget UPDATES (already-registered) skip the gate entirely: edits serve immediately, just re-register.
-6. faithful_render(size=xs|sm|md|lg). For live data / all sizes, build a canvas via the tesserae MCP and render_preview.
-7. mine_data_schema(apply=true) once the data shape is final.
+4. register_widget. A new widget serves its client.js immediately on the in-process reload, no restart (Tesserae reads the plugin registry fresh per request as of the plugin-asset fix). ONE EXCEPTION: a widget that declares an admin blueprint() still needs a single Tesserae restart to wire its admin route, so batch those, register all of them, then ask the user for one restart. Widget UPDATES (already-registered) never need a restart.
+5. faithful_render(size=xs|sm|md|lg). For live data / all sizes, build a canvas via the tesserae MCP and render_preview.
+6. mine_data_schema(apply=true) once the data shape is final.
 
-DIAGNOSING A FAILED / BLANK RENDER (do this before touching client.js)
-- Symptom "Failed to fetch dynamically imported module .../client.js" or a blank cell on a NEW widget = the RESTART GATE, not a bug. Confirm with probe_widget_data: if it returns your real server output (or your friendly error), server.py is loaded and only the static asset is 404ing, apply the permanent fix or ask for a restart; do NOT re-edit the JS.
-- Only if probe shows something inconsistent, or the widget is already-registered, treat it as a genuine client.js / JS error.
+DIAGNOSING A FAILED / BLANK RENDER (do this before re-editing client.js)
+- Confirm the server side first with probe_widget_data: if it returns your real output (or your friendly error), server.py is loaded, so the problem is in client.js, fix the JS.
+- "Failed to fetch dynamically imported module .../client.js" now almost always means a genuine JS error (syntax, bad import path), not a reload gate. The only remaining reload case is a brand-new widget that declares an admin blueprint() (needs one restart).
 
 HARD RULES
 - Lint: data_schema.fields[].type must be num | str | arr (never "int"). server.py must NEVER use `raise`, return {"error": "..."} or thread (value, error) tuples.
