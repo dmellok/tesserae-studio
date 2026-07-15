@@ -16,6 +16,7 @@ _EXPECTED_TOOLS = {
     "list_widgets",
     "scaffold_widget",
     "scaffold_bundle",
+    "scaffold_service",
     "duplicate_widget",
     "list_files",
     "read_file",

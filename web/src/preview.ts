@@ -110,18 +110,31 @@ export async function render() {
   const badge = $<HTMLSpanElement>("badge");
   const frame = $<HTMLDivElement>("frame");
 
-  // Companion plugins (a bundle's _core, kind data) don't render as widgets.
+  // Companion plugins (a bundle's _core) and services don't render as widgets.
   if (!isWidgetKind(state.widget)) {
     setSourceChip("");
-    badge.textContent = state.widget.kind ?? "companion";
+    const kind = state.widget.kind ?? "companion";
+    badge.textContent = kind;
     frame.classList.add("is-empty");
+    const isService = kind === "service";
+    const title = isService
+      ? `${escapeHtml(state.widget.name)} is a service`
+      : `${escapeHtml(state.widget.name)} is a companion plugin`;
+    const text = isService
+      ? "A service is a non-placeable data source (server.py fetch() only). It has no render; a canvas code/data element sources it by key. Probe it with empty options to see its scopes."
+      : "Companions have no widget render. Configure it on its admin page in Tesserae, and register it so member widgets can read it.";
     frame.innerHTML = `
       <div class="empty-state">
-        <i class="empty-ico ph-bold ph-plugs-connected"></i>
-        <p class="empty-title">${escapeHtml(state.widget.name)} is a companion plugin</p>
-        <p class="empty-text">Companions have no widget render. Configure it on its admin page in Tesserae, and register it so member widgets can read it.</p>
+        <i class="empty-ico ph-bold ${isService ? "ph-cloud" : "ph-plugs-connected"}"></i>
+        <p class="empty-title">${title}</p>
+        <p class="empty-text">${text}</p>
       </div>`;
-    setNote(`Companion plugin (${state.widget.kind}) · configure on its admin page in Tesserae.`, "");
+    setNote(
+      isService
+        ? `Service (non-placeable data source) · edit server.py and register it.`
+        : `Companion plugin (${kind}) · configure on its admin page in Tesserae.`,
+      "",
+    );
     return;
   }
   frame.classList.remove("is-empty");

@@ -21,7 +21,7 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP, Image
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 STUDIO_URL = os.environ.get("STUDIO_URL", "http://localhost:8770").rstrip("/")
 
@@ -37,6 +37,9 @@ BUILD LOOP
 4. register_widget. A new widget serves its client.js immediately on the in-process reload, no restart (Tesserae reads the plugin registry fresh per request as of the plugin-asset fix). ONE EXCEPTION: a widget that declares an admin blueprint() still needs a single Tesserae restart to wire its admin route, so batch those, register all of them, then ask the user for one restart. Widget UPDATES (already-registered) never need a restart.
 5. faithful_render(size=xs|sm|md|lg, options={...}). Pass options to QA a configured state. Base font scales with container WIDTH, so also check extreme aspect ratios (wide-short cells overflow in ways the xs/sm size tokens don't reveal), not just size. For live data across all sizes/fragments, build a canvas via the tesserae MCP and render_preview.
 6. mine_data_schema(apply=true) once the data shape is final.
+
+SERVICES (non-placeable data sources)
+- To make an API available to a canvas code/data element (not draw a tile), scaffold_service(name) instead of a widget: kind "service", server.py fetch() only, no render/fragments, supports.sizes may be []. An empty-options probe MUST return a self-describing {service, auth, scopes, usage} map; a chosen options.scope returns the API JSON; failure returns {"error": ...}, never raise. Lint + register like a widget; it won't appear in the canvas picker (source it by key).
 
 LEARN FROM SIBLINGS
 - read_file / list_files also work on the connected checkout's REFERENCE widgets (e.g. ha_core, ha_history). Read a family's server.py + client.js to copy its data pattern and house style, don't guess.
@@ -154,6 +157,15 @@ async def scaffold_bundle(name: str, members: list[dict] | None = None, admin: b
     if members:
         body["members"] = members
     return await _json("POST", "/studio/api/scaffold-bundle", json=body)
+
+
+@mcp.tool()
+async def scaffold_service(name: str) -> dict:
+    """Scaffold a service plugin (kind: service): a non-placeable data source,
+    server.py fetch() only, no render side, that feeds a canvas code/data element
+    from an API. Probe it with empty options to get its self-describing scope map;
+    lint and register it like a widget."""
+    return await _json("POST", "/studio/api/scaffold-service", json={"name": name})
 
 
 @mcp.tool()

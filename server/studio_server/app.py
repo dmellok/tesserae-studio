@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import SIZE_DIMENSIONS, Settings, ha_options_debug
 from .events import EventBus
 from .flatten import flatten_fields
-from .linter import lint_widget
+from .linter import lint_service, lint_widget
 from .mine import MineError, apply_to_manifest, mine
 from .packager import package_widget
 from .proxy import forward
@@ -35,7 +35,13 @@ from .publish import (
 from .publish import (
     pr_body as _pr_body,
 )
-from .scaffold import ScaffoldError, copy_widget, scaffold_files, slugify
+from .scaffold import (
+    ScaffoldError,
+    copy_widget,
+    scaffold_files,
+    scaffold_service_files,
+    slugify,
+)
 from .source import TesseraeSource, catalog_entry
 from .sync import SyncError, is_synced
 from .sync import sync as sync_widget
@@ -68,7 +74,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.8.1", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.9.0", lifespan=lifespan)
     app.state.settings = settings
 
     # ---- Studio's own API -------------------------------------------------
@@ -448,6 +454,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 fragments=spec.get("fragments") or None,
                 with_server=bool(spec.get("server")),
             )
+            result = app.state.workspace.create_widget(key, files)
+        except (ScaffoldError, WorkspaceError) as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        _emit("scaffold", key)
+        return JSONResponse({"ok": True, **result})
+
+    @app.post("/studio/api/scaffold-service")
+    async def scaffold_service(spec: dict = Body(...)) -> JSONResponse:
+        """Scaffold a ``service`` plugin: a non-placeable data source (server.py
+        fetch() only, no render side) that feeds a code/data element on the canvas."""
+        name = str(spec.get("name") or "").strip()
+        if not name:
+            return JSONResponse({"error": "name is required"}, status_code=400)
+        try:
+            key, files = scaffold_service_files(name)
             result = app.state.workspace.create_widget(key, files)
         except (ScaffoldError, WorkspaceError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
@@ -950,8 +971,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 }
             ]
             return JSONResponse({"widget": widget, "findings": bad, "errors": 1, "warnings": 0})
-        if manifest.get("kind") not in (None, "widget"):
-            # Companion plugins (data/admin) aren't widgets; the widget rules
+        kind = manifest.get("kind")
+        if kind == "service":
+            # A service is server.py-only; lint the server + manifest rules, skip
+            # the widget/client rules (no render side).
+            findings = lint_service(files, manifest, schema=_load_schema())
+            errors = sum(1 for f in findings if f["level"] == "error")
+            return JSONResponse(
+                {
+                    "widget": widget,
+                    "findings": findings,
+                    "errors": errors,
+                    "warnings": len(findings) - errors,
+                }
+            )
+        if kind not in (None, "widget"):
+            # Companion plugins (data/admin/font) aren't widgets; the widget rules
             # (client.js, fragments, ...) don't apply.
             return JSONResponse(
                 {
@@ -959,8 +994,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "findings": [],
                     "errors": 0,
                     "warnings": 0,
-                    "note": f"companion plugin (kind {manifest.get('kind')}); "
-                    "not linted as a widget",
+                    "note": f"companion plugin (kind {kind}); not linted as a widget",
                 }
             )
         findings = lint_widget(files, manifest, schema=_load_schema())

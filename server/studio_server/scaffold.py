@@ -73,6 +73,97 @@ def scaffold_files(
     return key, files
 
 
+def scaffold_service_files(name: str) -> tuple[str, dict[str, str]]:
+    """Return ``(key, {relpath: content})`` for a new ``service`` plugin: a
+    non-placeable data source (server.py fetch() only, no render side). Does not
+    write."""
+    key = slugify(name)
+    return key, {
+        "plugin.json": _service_manifest(key, name),
+        "server.py": _service_py(key, name),
+    }
+
+
+def _service_manifest(key: str, name: str) -> str:
+    manifest: dict[str, Any] = {
+        "tesserae_compat": "1.x",
+        "name": name,
+        "version": "0.1.0",
+        "kind": "service",
+        "description": (
+            f"Non-placeable data source exposing an API to a code element. Not shown in "
+            f"the canvas picker; source it by key '{key}'. Probe with empty options to "
+            f"see scopes."
+        ),
+        "icon": "ph-cloud",
+        "supports": {"sizes": []},
+        "requires": ["network:api.example.com"],
+        "cell_options": [
+            {
+                "name": "scope",
+                "type": "select",
+                "label": "Scope",
+                "default": "",
+                "choices": [
+                    {"value": "", "label": "(discovery: list scopes)"},
+                    {"value": "summary", "label": "Summary"},
+                ],
+            },
+            {"name": "id", "type": "string", "label": "Resource id (summary scope)", "default": ""},
+        ],
+    }
+    return json.dumps(manifest, indent=2) + "\n"
+
+
+def _service_py(key: str, name: str) -> str:
+    return _SERVICE_PY.replace("__NAME__", name).replace("__KEY__", key)
+
+
+# A service: fetch() is the whole plugin. Empty scope self-describes; a scope
+# returns the parsed API JSON; failure returns {"error": ...}, never raises.
+_SERVICE_PY = '''"""__NAME__ (kind: service). fetch() is the whole plugin; no render side.
+
+Probe with empty options to get a self-describing map of scopes, then set
+options.scope to one of them. Return {"error": "..."} on failure; never raise.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from app.plugin_http import fetch_json  # GET+JSON with retries (POST: use urllib)
+
+_BASE = "https://api.example.com"
+
+
+def _discovery() -> dict[str, Any]:
+    return {
+        "service": "__KEY__",
+        "auth": "none",
+        "scopes": {"summary": "One resource's summary. Set options.id."},
+        "usage": "Set options.scope to one of the scopes above.",
+    }
+
+
+def fetch(
+    options: dict[str, Any], settings: dict[str, Any], *, ctx: dict[str, Any]
+) -> dict[str, Any]:
+    del settings, ctx  # ctx has home_lat/home_lon + fresh; settings holds secrets
+    scope = str(options.get("scope") or "").strip()
+    if not scope:
+        return _discovery()
+    if scope == "summary":
+        rid = str(options.get("id") or "").strip()
+        if not rid:
+            return {"error": "summary scope needs options.id"}
+        try:
+            return dict(fetch_json(f"{_BASE}/v1/things/{rid}", timeout=8.0, retries=1))
+        except Exception as err:  # noqa: BLE001
+            return {"error": f"{type(err).__name__}: {err}", "scope": scope}
+    return {"error": f"unknown scope {scope!r}"}
+'''
+
+
 def _normalise_fragment(f: dict[str, Any]) -> dict[str, Any]:
     fid = slugify(str(f.get("id") or f.get("label") or "part"))
     return {

@@ -410,6 +410,39 @@ RULES: list[Callable[[dict, dict], Iterable[Finding]]] = [
 ]
 
 
+# A service plugin (kind: service) is a server.py-only data source: lint the
+# server + manifest rules, skip everything about a render side.
+def _r_service_has_server(files, manifest):
+    if manifest.get("kind") == "service" and "server.py" not in files:
+        yield Finding(
+            "service-server",
+            ERROR,
+            "A service plugin must ship a server.py exporting fetch(options, settings, *, ctx).",
+            "server.py",
+        )
+
+
+SERVICE_RULES: list[Callable[[dict, dict], Iterable[Finding]]] = [
+    _r_service_has_server,
+    _r_no_raise,
+    _r_declare_egress,
+    _r_select_choices,
+]
+
+
+def lint_service(
+    files: dict[str, str], manifest: dict[str, Any], *, schema: dict | None = None
+) -> list[dict]:
+    """Lint a ``service`` plugin: the server.py + manifest rules only."""
+    findings: list[Finding] = []
+    for rule in SERVICE_RULES:
+        findings.extend(rule(files, manifest))
+    if schema is not None:
+        findings.extend(_validate_schema(manifest, schema))
+    findings.sort(key=lambda f: (f.file, f.line or 0, f.level != ERROR))
+    return [asdict(f) for f in findings]
+
+
 def lint_widget(
     files: dict[str, str], manifest: dict[str, Any], *, schema: dict | None = None
 ) -> list[dict]:

@@ -799,6 +799,28 @@ def test_lint_skips_companion_core(ws_client):
     assert ws_client.get("/studio/api/lint/news_headlines").json()["errors"] == 0
 
 
+def test_scaffold_service_is_lint_clean(ws_client):
+    r = ws_client.post("/studio/api/scaffold-service", json={"name": "Weather API"}).json()
+    assert r["ok"] is True and r["key"] == "weather_api"
+    manifest = json.loads(
+        ws_client.get("/studio/api/files/weather_api/plugin.json").json()["content"]
+    )
+    assert manifest["kind"] == "service" and manifest["supports"]["sizes"] == []
+    lint = ws_client.get("/studio/api/lint/weather_api").json()
+    # Linted as a service (server rules + schema), not skipped as a companion.
+    assert lint["errors"] == 0 and "note" not in lint
+
+
+def test_lint_service_flags_raise(ws_client):
+    ws_client.post("/studio/api/scaffold-service", json={"name": "Bad Svc"})
+    ws_client.put(
+        "/studio/api/files/bad_svc/server.py",
+        json={"content": "def fetch(o, s, *, ctx):\n    raise ValueError('x')\n"},
+    )
+    lint = ws_client.get("/studio/api/lint/bad_svc").json()
+    assert lint["errors"] >= 1 and any(f["rule"] == "no-raise" for f in lint["findings"])
+
+
 def test_scaffold_bundle_rejects_clash(ws_client):
     ws_client.post(
         "/studio/api/scaffold-bundle", json={"name": "News", "members": [{"name": "Headlines"}]}
