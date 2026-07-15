@@ -9,6 +9,9 @@
    Spacing rides the --t-space-* scale; right-alignment is done once per group,
    never with scattered per-element margin-left:auto. */
 
+/* Author display rules must never override the semantic hidden state. */
+[hidden] { display: none !important; }
+
 /* ---- app shell ------------------------------------------------------- */
 #app {
   height: 100vh;
