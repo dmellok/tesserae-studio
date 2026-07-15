@@ -121,7 +121,14 @@ export interface MineResult {
   warnings: string[];
 }
 
-export const mineSchema = (widget: string, opts: { source?: string; apply?: boolean } = {}) =>
+export const mineSchema = (
+  widget: string,
+  opts: {
+    source?: string;
+    apply?: boolean;
+    options?: Record<string, unknown>;
+  } = {},
+) =>
   getJson<MineResult>(`/studio/api/mine/${encodeURIComponent(widget)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },

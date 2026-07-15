@@ -209,7 +209,7 @@ async function runMine() {
   mineBtn.disabled = true;
   mineBtn.textContent = "Mining…";
   try {
-    const res = await mineSchema(w.key, { source: "auto" });
+    const res = await mineSchema(w.key, { source: "auto", options: state.options });
     renderMinePanel(res);
   } catch (err) {
     setNote(`Mine failed: ${err instanceof Error ? err.message : String(err)}`, "err");
@@ -253,7 +253,11 @@ async function applyMine() {
   const editor = getEditor();
   markLocalMutation();
   try {
-    const res = await mineSchema(w.key, { source: "auto", apply: true });
+    const res = await mineSchema(w.key, {
+      source: "auto",
+      apply: true,
+      options: state.options,
+    });
     // Refresh plugin.json in the editor without losing edits to other files.
     const content = (await readFile(w.key, "plugin.json")).content;
     editor.setValue("plugin.json", content);
