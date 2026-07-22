@@ -140,8 +140,22 @@ describe("request shapes", () => {
   });
 
   it("mineSchema POSTs its options", async () => {
-    await mineSchema("wx", { source: "auto", apply: true });
-    expect(JSON.parse(lastCall()[1]?.body as string)).toEqual({ source: "auto", apply: true });
+    await mineSchema("wx", {
+      source: "auto",
+      apply: true,
+      options: {
+        entities: "media_player.living_room",
+        show_ratings: false,
+      },
+    });
+    expect(JSON.parse(lastCall()[1]?.body as string)).toEqual({
+      source: "auto",
+      apply: true,
+      options: {
+        entities: "media_player.living_room",
+        show_ratings: false,
+      },
+    });
   });
 
   it("mineSchema defaults to an empty options body", async () => {
