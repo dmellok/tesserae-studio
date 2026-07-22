@@ -3,6 +3,7 @@
 // and the render() entry point every other module calls after a change.
 
 import { getWidgetData } from "./api";
+import { getEditor } from "./editorInstance";
 import { escapeHtml, faithfulSize } from "./logic";
 import { mountWidget } from "./mount";
 import { PANEL, state } from "./state";
@@ -19,9 +20,9 @@ export function updateTierButtons() {
   const ok = faithfulReady();
   tierFaithful.disabled = !ok;
   tierFaithful.title = ok
-    ? "True e-ink render through Tesserae"
+    ? "The e-ink render of the version registered in Tesserae, at true panel resolution (fonts and dither differ from the interactive preview). Save and re-register to reflect your latest edits."
     : !state.faithful
-      ? "Connect a Tesserae (mcp experiment on) for the faithful render"
+      ? "Connect a Tesserae (data API on) for the faithful render"
       : "Register this widget to Tesserae first";
   if (!ok && state.tier === "faithful") state.tier = "interactive";
   tierInteractive.classList.toggle("active", state.tier === "interactive");
@@ -79,16 +80,17 @@ export function setSourceChip(source: "live" | "sample" | "none" | "") {
     source === "live" ? "live data" : source === "sample" ? "sample data" : "no data";
 }
 
-async function dataFor(widget: Widget): Promise<unknown> {
+async function dataFor(widget: Widget, fresh = false): Promise<unknown> {
   // Cache per (widget, version, options) so an edit or an options change both
-  // re-fetch, and the live data reflects the config.
+  // re-fetch, and the live data reflects the config. `fresh` skips both this
+  // cache and Tesserae's, so a server.py edit shows immediately after a save.
   const cacheKey = `${widget.key}@${state.version}@${JSON.stringify(state.options)}`;
-  if (state.dataCache.has(cacheKey)) {
+  if (!fresh && state.dataCache.has(cacheKey)) {
     setSourceChip((state.sourceCache.get(cacheKey) as "live" | "sample" | "none") ?? "");
     return state.dataCache.get(cacheKey);
   }
   try {
-    const res = await getWidgetData(widget.key, state.options);
+    const res = await getWidgetData(widget.key, state.options, fresh);
     state.dataCache.set(cacheKey, res.data ?? null);
     state.sourceCache.set(cacheKey, res.source);
     setSourceChip(res.source);
@@ -105,7 +107,7 @@ export function isWidgetKind(w: Widget): boolean {
   return !w.kind || w.kind === "widget";
 }
 
-export async function render() {
+export async function render(opts: { fresh?: boolean } = {}) {
   if (!state.widget || !state.fragment) return;
   const badge = $<HTMLSpanElement>("badge");
   const frame = $<HTMLDivElement>("frame");
@@ -149,7 +151,7 @@ export async function render() {
     return;
   }
 
-  const data = await dataFor(state.widget);
+  const data = await dataFor(state.widget, opts.fresh);
   frame.textContent = "";
   const host = document.createElement("div");
   host.className = "cell";
@@ -167,7 +169,18 @@ export async function render() {
       version: state.version,
     });
   } catch (err) {
-    setNote(`Mount failed: ${err instanceof Error ? err.message : String(err)}`, "err");
+    const msg = err instanceof Error ? err.message : String(err);
+    // A reference (non-editable) widget's source lives on the connected Tesserae.
+    // If it won't serve client.js (not installed there, or served elsewhere), the
+    // raw dynamic-import error is opaque; explain the actual situation.
+    if (!state.widget.editable && /dynamically imported module|import/i.test(msg)) {
+      setNote(
+        `Can't load ${state.widget.key}'s source from the connected Tesserae (it isn't served there). Duplicate it to your workspace to view and preview it.`,
+        "warn",
+      );
+    } else {
+      setNote(`Mount failed: ${msg}`, "err");
+    }
   }
 }
 
@@ -182,6 +195,13 @@ export function initPreview() {
   tierFaithful.addEventListener("click", () => {
     if (tierFaithful.disabled) return;
     state.tier = "faithful";
+    // Faithful renders the registered version, so unsaved edits won't appear.
+    if (getEditor().anyDirty()) {
+      setNote(
+        "Faithful shows the version registered in Tesserae. Save and re-register to include your unsaved edits.",
+        "warn",
+      );
+    }
     void render();
   });
 

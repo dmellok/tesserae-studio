@@ -13,12 +13,18 @@ export const getCatalog = () => getJson<Catalog>("/studio/api/catalog");
 // ctx.data for the preview. Studio resolves the source: a live fetch() through
 // the connected Tesserae (with the cell options so the data reflects the
 // config), or the dev-gallery sample from the disk checkout.
-export const getWidgetData = (key: string, options?: Record<string, unknown>) => {
-  const q =
-    options && Object.keys(options).length
-      ? `?options=${encodeURIComponent(JSON.stringify(options))}`
-      : "";
-  return getJson<WidgetData>(`/studio/api/widgets/${encodeURIComponent(key)}/data${q}`);
+export const getWidgetData = (
+  key: string,
+  options?: Record<string, unknown>,
+  fresh = false,
+) => {
+  const params = new URLSearchParams();
+  if (options && Object.keys(options).length) params.set("options", JSON.stringify(options));
+  if (fresh) params.set("fresh", "1"); // bypass Tesserae's fetch() cache after an edit
+  const q = params.toString();
+  return getJson<WidgetData>(
+    `/studio/api/widgets/${encodeURIComponent(key)}/data${q ? `?${q}` : ""}`,
+  );
 };
 
 // -- workspace file API (M1) ------------------------------------------------

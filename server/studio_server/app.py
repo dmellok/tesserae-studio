@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.9.0", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.9.1", lifespan=lifespan)
     app.state.settings = settings
 
     # ---- Studio's own API -------------------------------------------------

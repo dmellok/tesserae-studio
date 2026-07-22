@@ -20,6 +20,10 @@ _IGNORE_SUFFIXES = {".pyc"}
 # listed but not opened as text by the editor.
 _TEXT_SUFFIXES = {".py", ".js", ".json", ".css", ".html", ".txt", ".md", ".svg"}
 _MAX_FILE_BYTES = 512 * 1024
+# Plugin kinds Studio can author (and therefore surfaces from the workspace): the
+# placeable ``widget`` plus its companions (``data``/``admin``/``font``) and
+# non-placeable ``service`` data sources.
+_AUTHORABLE_KINDS = {"widget", "data", "admin", "font", "service"}
 
 
 class WorkspaceError(Exception):
@@ -92,8 +96,9 @@ class Workspace:
     def list_widgets(self) -> list[dict[str, Any]]:
         """Editable plugins in the workdir, each with identity + fragments so
         they merge into the catalog. Includes companion plugins (kind ``data`` /
-        ``admin``) so a bundle's ``_core`` is editable too; the caller uses the
-        manifest ``kind`` to decide whether it renders as a widget."""
+        ``admin`` / ``font``) so a bundle's ``_core`` is editable too, and
+        ``service`` data sources; the caller uses the manifest ``kind`` to decide
+        whether it renders as a widget."""
         if not self.root.is_dir():
             return []
         out: list[dict[str, Any]] = []
@@ -103,7 +108,7 @@ class Workspace:
                 manifest = json.loads(manifest_path.read_text())
             except (json.JSONDecodeError, OSError):
                 continue
-            if manifest.get("kind") not in ("widget", "data", "admin"):
+            if manifest.get("kind") not in _AUTHORABLE_KINDS:
                 continue
             out.append({"key": wdir.name, "manifest": manifest})
         return out

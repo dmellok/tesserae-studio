@@ -195,8 +195,11 @@ function toggleAdmin() {
   }
 }
 
-// Load a widget's config schema + admin availability. Called on widget select.
-export async function loadWidgetConfig(key: string) {
+// Load a widget's config schema + admin availability. Called on widget select,
+// and again after a plugin.json save (with preserveOptions, so editing the
+// manifest refreshes the cell_option form without discarding values already set).
+export async function loadWidgetConfig(key: string, opts: { preserveOptions?: boolean } = {}) {
+  const prev = opts.preserveOptions ? { ...state.options } : null;
   schema = [];
   adminUrl = "";
   hideAdmin();
@@ -205,13 +208,16 @@ export async function loadWidgetConfig(key: string) {
   settingsSchema = [];
   settingsValues = {};
   try {
-    const [opts, admin, settings] = await Promise.all([
+    const [optsRes, admin, settings] = await Promise.all([
       getWidgetOptions(key),
       getWidgetAdmin(key),
       getWidgetSettings(key),
     ]);
-    schema = opts.options || [];
-    state.options = optionDefaults(schema);
+    schema = optsRes.options || [];
+    const defaults = optionDefaults(schema);
+    // Keep any value the user already set for an option that still exists.
+    if (prev) for (const f of schema) if (f.name in prev) defaults[f.name] = prev[f.name];
+    state.options = defaults;
     adminUrl = admin.url;
     adminBtn.hidden = !admin.has_admin;
     settingsSchema = settings.settings || [];

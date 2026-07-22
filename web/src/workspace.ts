@@ -13,6 +13,7 @@ import {
 } from "./api";
 import type { MineResult } from "./api";
 import { refreshCatalog, selectWidget } from "./catalog";
+import { loadWidgetConfig } from "./configForm";
 import type { OpenFile } from "./editor";
 import { getEditor } from "./editorInstance";
 import { markLocalMutation } from "./events";
@@ -137,9 +138,15 @@ async function save() {
   renderTabs();
   $<HTMLButtonElement>("save").disabled = true;
   state.version = Date.now(); // bust the client.js import + data cache
-  // Editing the manifest can change fragments/name; refresh the catalog entry.
-  if (path === "plugin.json") await refreshCatalog(widget.key);
-  await render();
+  // Editing the manifest can change fragments/name/options; refresh the catalog
+  // entry and the config form so cell_options and settings render immediately.
+  if (path === "plugin.json") {
+    await refreshCatalog(widget.key);
+    await loadWidgetConfig(widget.key, { preserveOptions: true });
+  }
+  // A save is an explicit edit: bypass Tesserae's fetch() cache so a server.py
+  // change is reflected in the preview data right away, not up to 60s later.
+  await render({ fresh: true });
   await runLint(widget);
   setNote(`Saved ${path}. Preview updated.`, "");
 }

@@ -87,6 +87,12 @@ export class WidgetEditor {
       renderWhitespace: "none",
       padding: { top: 12 },
     });
+    // JetBrains Mono loads asynchronously; Monaco measures glyph width at create
+    // time using a fallback metric, so the caret drifts left of the real cursor
+    // (`la|tude` typing `ti` lands as `latu|deti`) until the web font arrives.
+    // Re-measure once fonts finish loading to lock the caret to the glyphs.
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.ready) void fonts.ready.then(() => monaco.editor.remeasureFonts());
   }
 
   onDirtyChange(cb: () => void) {

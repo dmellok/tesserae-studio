@@ -307,6 +307,20 @@ def test_workspace_guard_rejects_escape(tmp_path):
         ws.read_file("../..", "etc/passwd")
 
 
+def test_list_widgets_surfaces_service_and_font_kinds(tmp_path):
+    """A service (and font) plugin placed in the workspace must be listed, not
+    silently dropped by the kind filter."""
+    from studio_server.workspace import Workspace
+
+    ws = Workspace(tmp_path)
+    for name, kind in (("weather_api", "service"), ("brand_font", "font"), ("ticker", "widget")):
+        d = tmp_path / name
+        d.mkdir()
+        (d / "plugin.json").write_text(json.dumps({"kind": kind, "name": name}))
+    keys = {w["key"]: w["manifest"]["kind"] for w in ws.list_widgets()}
+    assert keys == {"weather_api": "service", "brand_font": "font", "ticker": "widget"}
+
+
 # -- scaffold + duplicate (M2) ---------------------------------------------
 def test_scaffold_creates_editable_widget(ws_client):
     r = ws_client.post("/studio/api/scaffold", json={"name": "My Cool Widget"}).json()

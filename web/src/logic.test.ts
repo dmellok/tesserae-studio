@@ -66,37 +66,40 @@ function health(over: Partial<Health>): Health {
 describe("healthPills", () => {
   it("marks a standalone disk source ok", () => {
     const { mode } = healthPills(health({ mode: "disk" }));
-    expect(mode).toEqual({ kind: "ok", label: "disk · standalone" });
+    expect(mode).toMatchObject({ kind: "ok", label: "disk · standalone" });
+    expect(mode.title).toBeTruthy();
   });
 
   it("flags no source as bad", () => {
     const { mode } = healthPills(health({ mode: "none" }));
-    expect(mode).toEqual({ kind: "bad", label: "no source" });
+    expect(mode).toMatchObject({ kind: "bad", label: "no source" });
+    expect(mode.title).toBeTruthy();
   });
 
   it("warns (not bad) when Tesserae is offline but disk still works", () => {
     const { conn } = healthPills(health({ mode: "disk", tesserae: "unreachable" }));
-    expect(conn).toEqual({ kind: "warn", label: "Tesserae offline" });
+    expect(conn).toMatchObject({ kind: "warn", label: "Tesserae offline" });
   });
 
   it("goes bad when Tesserae is offline and there is no disk source", () => {
     const { conn } = healthPills(health({ mode: "none", tesserae: "unreachable" }));
-    expect(conn).toEqual({ kind: "bad", label: "Tesserae offline" });
+    expect(conn).toMatchObject({ kind: "bad", label: "Tesserae offline" });
   });
 
-  it("nudges to enable the mcp experiment", () => {
+  it("flags the data API being off, with a tooltip that explains the mcp gate", () => {
     const { conn } = healthPills(health({ mcp: "off" }));
-    expect(conn).toEqual({ kind: "warn", label: 'enable the "mcp" experiment' });
+    expect(conn).toMatchObject({ kind: "warn", label: "data API off" });
+    expect(conn.title).toContain("mcp");
   });
 
   it("reports connected without live data", () => {
     const { conn } = healthPills(health({ live_data: false }));
-    expect(conn).toEqual({ kind: "ok", label: "connected" });
+    expect(conn).toMatchObject({ kind: "ok", label: "connected" });
   });
 
   it("reports live data + faithful when fully connected", () => {
     const { conn } = healthPills(health({}));
-    expect(conn).toEqual({ kind: "ok", label: "live data + faithful" });
+    expect(conn).toMatchObject({ kind: "ok", label: "live data + faithful" });
   });
 });
 

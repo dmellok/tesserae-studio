@@ -9,6 +9,7 @@ export type PillKind = "ok" | "warn" | "bad" | "";
 export interface PillState {
   kind: PillKind;
   label: string;
+  title?: string; // hover tooltip explaining what the state means
 }
 
 export function escapeHtml(s: string): string {
@@ -30,17 +31,46 @@ export function faithfulSize(sizeMode: string, dims: { w: number; h: number }): 
 // Map a health snapshot to the mode + connection status pills.
 export function healthPills(h: Health): { mode: PillState; conn: PillState } {
   let mode: PillState;
-  if (h.mode === "disk") mode = { kind: "ok", label: "disk · standalone" };
-  else if (h.mode === "live") mode = { kind: "ok", label: "live" };
-  else mode = { kind: "bad", label: "no source" };
+  if (h.mode === "disk")
+    mode = {
+      kind: "ok",
+      label: "disk · standalone",
+      title: "Studio is sourcing widgets from a local folder on disk. Register a widget to also get live data and faithful render from Tesserae.",
+    };
+  else if (h.mode === "live")
+    mode = {
+      kind: "ok",
+      label: "live",
+      title: "Studio is sourcing widgets from the connected Tesserae.",
+    };
+  else
+    mode = {
+      kind: "bad",
+      label: "no source",
+      title: "Studio has no widget source yet: connect a Tesserae (set tesserae_url) or point it at a local widget folder.",
+    };
 
   let conn: PillState;
   if (h.tesserae !== "ok") {
-    conn = { kind: h.mode === "disk" ? "warn" : "bad", label: "Tesserae offline" };
+    conn = {
+      kind: h.mode === "disk" ? "warn" : "bad",
+      label: "Tesserae offline",
+      title: "Studio can't reach the configured Tesserae. Live data and faithful render are unavailable. Check tesserae_url and that Tesserae is running.",
+    };
   } else if (h.mcp === "off") {
-    conn = { kind: "warn", label: 'enable the "mcp" experiment' };
+    conn = {
+      kind: "warn",
+      label: "data API off",
+      title: "Tesserae is reachable but its data API is disabled. Studio needs it for live data and faithful render. In Tesserae, enable the \"mcp\" experiment (Settings, System), then restart Tesserae. (It gates the API Studio reads; you don't need to run an MCP agent.)",
+    };
   } else {
-    conn = { kind: "ok", label: h.live_data ? "live data + faithful" : "connected" };
+    conn = {
+      kind: "ok",
+      label: h.live_data ? "live data + faithful" : "connected",
+      title: h.live_data
+        ? "Connected to Tesserae: real fetch() data and faithful e-ink render are available."
+        : "Connected to Tesserae. Register a widget to get its live data and faithful render.",
+    };
   }
   return { mode, conn };
 }
