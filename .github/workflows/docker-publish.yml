@@ -1,13 +1,18 @@
 name: Docker
 
 # Build and publish the image to GitHub Container Registry. Runs on pushes to
-# main (tagged :latest + :main-<sha>) and on version tags (semver tags), so the
+# main (tagged :latest + :main-<sha> + :<version>-edge.<commit-time> for the
+# Home Assistant add-on edge channel) and on version tags (semver tags), so the
 # docker-compose file and the Home Assistant add-on can pull a prebuilt image.
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   publish:
@@ -27,6 +32,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Resolve edge version
+        # Per-commit immutable tag the HA add-on edge channel pins to:
+        # <pyproject-version>-edge.<commit-unix-timestamp>. The suffix is
+        # numeric and monotonic so HA Supervisor's semver comparison always
+        # sees a newer edge as newer. sync-addon.yml bumps the edge add-on's
+        # version to the same string on the same push event.
+        id: edge
+        if: github.ref == 'refs/heads/main'
+        run: |
+          ver="$(grep -E '^version = ' server/pyproject.toml | head -1 | sed -E 's/version = "([^"]+)"/\1/')"
+          ct="$(git log -1 --format='%ct' HEAD)"
+          echo "tag=${ver}-edge.${ct}" >> "$GITHUB_OUTPUT"
+
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -37,6 +55,7 @@ jobs:
             type=sha,prefix=main-,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ steps.edge.outputs.tag }},enable=${{ steps.edge.outputs.tag != '' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -46,5 +65,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Scope the cache per ref so a main push and a v* tag push firing
+          # together don't race on layer blob writes in the shared namespace.
+          cache-from: type=gha,scope=${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=${{ github.ref_name }}

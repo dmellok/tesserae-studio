@@ -1,0 +1,258 @@
+# Sync the Studio add-on in the companion HA Add-on repo.
+#
+# Two channels, two jobs (same shape as tesserae's sync-addon.yml):
+#
+# * **stable**: triggered on ``release: published`` + ``workflow_dispatch``.
+#   Bumps ``tesserae-studio/config.yaml`` to the release version. Fires when
+#   ``gh release create vX.Y.Z --latest ...`` runs; routine patch tags that
+#   don't carry a Release do not churn the add-on.
+#
+# * **edge**: triggered on ``push: branches: [main]``.
+#   Bumps ``tesserae-studio-edge/config.yaml`` to
+#   ``<pyproject>-edge.<commit-unix-timestamp>``. The matching docker image
+#   tag is pushed by ``docker-publish.yml`` on the same main-push event, so
+#   HA Supervisor's pull always resolves.
+#
+# Both jobs push a single commit to
+# https://github.com/dmellok/homeassistant-tesserae-addon via the
+# ``ADDON_REPO_PAT`` secret (fine-grained PAT, Contents: read+write on the
+# add-on repo only).
+
+name: sync-addon
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to sync (stable channel; without leading 'v'). Defaults to the latest release."
+        required: false
+
+permissions:
+  contents: read
+
+# Single lock across all event flavors: cutting a release fires BOTH a
+# release event (stable bump) and the matching push event (edge bump). If
+# they ran in parallel they'd race on pushing to the add-on repo.
+concurrency:
+  group: sync-addon
+  cancel-in-progress: false
+
+jobs:
+  # Stable bump, release: published + workflow_dispatch.
+  bump-stable:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ -n "${INPUT_VERSION:-}" ]; then
+              version="${INPUT_VERSION#v}"
+          else
+              version="${RELEASE_TAG#v}"
+          fi
+          if [ -z "${version}" ]; then
+              echo "::error::Couldn't resolve a version to sync"
+              exit 1
+          fi
+          tag="v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version=${version} tag=${tag}"
+
+      - name: Check out add-on repo
+        uses: actions/checkout@v4
+        with:
+          repository: dmellok/homeassistant-tesserae-addon
+          token: ${{ secrets.ADDON_REPO_PAT }}
+          path: addon
+          fetch-depth: 0
+
+      - name: Bump config.yaml + CHANGELOG
+        working-directory: addon
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          sed -i -E "s/^(version:[[:space:]]*\")[^\"]+(\".*)$/\1${VERSION}\2/" tesserae-studio/config.yaml
+
+          # HA Supervisor surfaces this file under the add-on's "Changelog"
+          # tab. Rewritten to just the current release every bump; the host
+          # repo's GitHub releases page holds the full history.
+          date_iso="$(date -u +'%Y-%m-%d')"
+          cat > tesserae-studio/CHANGELOG.md <<EOF
+          # Changelog
+
+          ## ${VERSION}, ${date_iso}
+
+          Tracks Tesserae Studio [${TAG}](https://github.com/dmellok/tesserae-studio/releases/tag/${TAG}).
+          See the linked release notes for what changed.
+
+          ---
+
+          For the full release history, see
+          [the Tesserae Studio releases page](https://github.com/dmellok/tesserae-studio/releases).
+          EOF
+          # Strip the 10-space leading indent the heredoc inherits from the
+          # shell block.
+          sed -i -E 's/^ {10}//' tesserae-studio/CHANGELOG.md
+
+      - name: Commit + push
+        working-directory: addon
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "tesserae-bot"
+          git config user.email "[email protected]"
+          git add tesserae-studio/config.yaml tesserae-studio/CHANGELOG.md
+          if git diff --cached --quiet; then
+              echo "Add-on already at version ${VERSION}, nothing to commit."
+              exit 0
+          fi
+          git commit -m "Studio add-on: track Studio ${TAG}
+
+          Auto-synced by tesserae-studio sync-addon.yml (stable channel).
+          Release: https://github.com/dmellok/tesserae-studio/releases/tag/${TAG}"
+          # Pull-rebase before push: the add-on repo can advance from a
+          # manual edit or the tesserae repo's own sync workflow between
+          # checkout and push, retry is cheap and covers that race.
+          pushed=0
+          for attempt in 1 2 3; do
+              if git pull --rebase origin main && git push; then
+                  pushed=1
+                  break
+              fi
+              echo "Push attempt ${attempt} failed, retrying..."
+              sleep 2
+          done
+          if [ "${pushed}" -ne 1 ]; then
+              echo "::error::Failed to push after 3 attempts"
+              exit 1
+          fi
+          echo "Bumped stable Studio add-on to ${VERSION}."
+
+  # Edge bump, push: branches: [main]. Tracks every main commit.
+  bump-edge:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out studio (for pyproject.toml + log subject)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Resolve edge version
+        id: ver
+        env:
+          GITHUB_SHA_FULL: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # <pyproject>-edge.<commit-unix-timestamp>, matching the edge tag
+          # docker-publish.yml pushes on the same event. The suffix is
+          # numeric and monotonic so HA Supervisor's semver comparison
+          # always sees a newer edge as newer.
+          base="$(grep -E '^version = ' server/pyproject.toml | head -1 | sed -E 's/version = "([^"]+)"/\1/')"
+          sha="$(echo "${GITHUB_SHA_FULL}" | cut -c1-7)"
+          ct="$(git log -1 --format='%ct' "${GITHUB_SHA_FULL}")"
+          edge_version="${base}-edge.${ct}"
+          subject="$(git log -1 --pretty=format:'%s' "${GITHUB_SHA_FULL}")"
+          echo "version=${edge_version}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          {
+            echo "subject<<SUBJ_EOF"
+            echo "${subject}"
+            echo "SUBJ_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Resolved edge version=${edge_version} sha=${sha}"
+
+      - name: Check out add-on repo
+        uses: actions/checkout@v4
+        with:
+          repository: dmellok/homeassistant-tesserae-addon
+          token: ${{ secrets.ADDON_REPO_PAT }}
+          path: addon
+          fetch-depth: 0
+
+      - name: Bump tesserae-studio-edge/config.yaml + CHANGELOG
+        working-directory: addon
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          SHA: ${{ steps.ver.outputs.sha }}
+          SUBJECT: ${{ steps.ver.outputs.subject }}
+          FULL_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # The edge directory is scaffolded manually once; the workflow
+          # doesn't try to create it.
+          if [ ! -d tesserae-studio-edge ]; then
+              echo "::warning::tesserae-studio-edge/ not present on the add-on repo, skipping. Scaffold it first."
+              exit 0
+          fi
+
+          sed -i -E "s/^(version:[[:space:]]*\")[^\"]+(\".*)$/\1${VERSION}\2/" tesserae-studio-edge/config.yaml
+
+          # Edge ships many bumps per day; keep the changelog to just the
+          # current build plus a pointer to the commit log.
+          date_iso="$(date -u +'%Y-%m-%d')"
+          cat > tesserae-studio-edge/CHANGELOG.md <<EOF
+          # Changelog
+
+          ## ${VERSION}, ${date_iso}
+
+          [\`${SHA}\`](https://github.com/dmellok/tesserae-studio/commit/${FULL_SHA}) ${SUBJECT}
+
+          ---
+
+          Edge tracks the tip of \`main\` and updates on every commit; this
+          file always shows just the latest edge build. For the full edge
+          history, see
+          [the Tesserae Studio commit log](https://github.com/dmellok/tesserae-studio/commits/main).
+          EOF
+          sed -i -E 's/^ {10}//' tesserae-studio-edge/CHANGELOG.md
+
+      - name: Commit + push
+        working-directory: addon
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          SHA: ${{ steps.ver.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ ! -d tesserae-studio-edge ]; then
+              echo "No edge dir to commit, exiting cleanly."
+              exit 0
+          fi
+          git config user.name "tesserae-bot"
+          git config user.email "[email protected]"
+          git add tesserae-studio-edge/config.yaml tesserae-studio-edge/CHANGELOG.md
+          if git diff --cached --quiet; then
+              echo "Edge add-on already at ${VERSION}, nothing to commit."
+              exit 0
+          fi
+          git commit -m "studio edge: track Studio main @ ${SHA}
+
+          Auto-synced by tesserae-studio sync-addon.yml (edge channel).
+          Commit: https://github.com/dmellok/tesserae-studio/commit/${SHA}"
+          pushed=0
+          for attempt in 1 2 3; do
+              if git pull --rebase origin main && git push; then
+                  pushed=1
+                  break
+              fi
+              echo "Push attempt ${attempt} failed, retrying..."
+              sleep 2
+          done
+          if [ "${pushed}" -ne 1 ]; then
+              echo "::error::Failed to push after 3 attempts"
+              exit 1
+          fi
+          echo "Bumped edge Studio add-on to ${VERSION}."
