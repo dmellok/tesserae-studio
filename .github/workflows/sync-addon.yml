@@ -47,7 +47,21 @@ jobs:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     steps:
+      # Secrets aren't readable in job-level ``if:``, so gate every step on
+      # this instead: without the PAT the job warns and no-ops rather than
+      # failing every run until the secret is configured.
+      - name: Check for ADDON_REPO_PAT
+        id: pat
+        env:
+          HAVE_PAT: ${{ secrets.ADDON_REPO_PAT != '' }}
+        run: |
+          echo "have=${HAVE_PAT}" >> "$GITHUB_OUTPUT"
+          if [ "${HAVE_PAT}" != "true" ]; then
+              echo "::warning::ADDON_REPO_PAT secret not set; skipping add-on sync. Set it with: gh secret set ADDON_REPO_PAT -R ${GITHUB_REPOSITORY}"
+          fi
+
       - name: Resolve version
+        if: steps.pat.outputs.have == 'true'
         id: ver
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
@@ -68,6 +82,7 @@ jobs:
           echo "Resolved version=${version} tag=${tag}"
 
       - name: Check out add-on repo
+        if: steps.pat.outputs.have == 'true'
         uses: actions/checkout@v4
         with:
           repository: dmellok/homeassistant-tesserae-addon
@@ -76,6 +91,7 @@ jobs:
           fetch-depth: 0
 
       - name: Bump config.yaml + CHANGELOG
+        if: steps.pat.outputs.have == 'true'
         working-directory: addon
         env:
           VERSION: ${{ steps.ver.outputs.version }}
@@ -106,6 +122,7 @@ jobs:
           sed -i -E 's/^ {10}//' tesserae-studio/CHANGELOG.md
 
       - name: Commit + push
+        if: steps.pat.outputs.have == 'true'
         working-directory: addon
         env:
           VERSION: ${{ steps.ver.outputs.version }}
@@ -146,12 +163,25 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      # Same missing-secret guard as bump-stable: warn + no-op, don't fail.
+      - name: Check for ADDON_REPO_PAT
+        id: pat
+        env:
+          HAVE_PAT: ${{ secrets.ADDON_REPO_PAT != '' }}
+        run: |
+          echo "have=${HAVE_PAT}" >> "$GITHUB_OUTPUT"
+          if [ "${HAVE_PAT}" != "true" ]; then
+              echo "::warning::ADDON_REPO_PAT secret not set; skipping add-on sync. Set it with: gh secret set ADDON_REPO_PAT -R ${GITHUB_REPOSITORY}"
+          fi
+
       - name: Check out studio (for pyproject.toml + log subject)
+        if: steps.pat.outputs.have == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
       - name: Resolve edge version
+        if: steps.pat.outputs.have == 'true'
         id: ver
         env:
           GITHUB_SHA_FULL: ${{ github.sha }}
@@ -176,6 +206,7 @@ jobs:
           echo "Resolved edge version=${edge_version} sha=${sha}"
 
       - name: Check out add-on repo
+        if: steps.pat.outputs.have == 'true'
         uses: actions/checkout@v4
         with:
           repository: dmellok/homeassistant-tesserae-addon
@@ -184,6 +215,7 @@ jobs:
           fetch-depth: 0
 
       - name: Bump tesserae-studio-edge/config.yaml + CHANGELOG
+        if: steps.pat.outputs.have == 'true'
         working-directory: addon
         env:
           VERSION: ${{ steps.ver.outputs.version }}
@@ -221,6 +253,7 @@ jobs:
           sed -i -E 's/^ {10}//' tesserae-studio-edge/CHANGELOG.md
 
       - name: Commit + push
+        if: steps.pat.outputs.have == 'true'
         working-directory: addon
         env:
           VERSION: ${{ steps.ver.outputs.version }}
