@@ -10,16 +10,17 @@ What still needs a release is the tool LIST and the bridge's own result
 handling, which is why the payload also names the bridge version Studio ships
 with (see :mod:`studio_server.mcp_bridge`).
 
-``TOOL_DOCS`` is read off the in-repo bridge module rather than retyped here.
-The descriptions live with the functions they describe, which is where an author
-will edit them; keeping a second hand-maintained copy in this file would just be
+The per-tool descriptions are read off the in-repo bridge module rather than
+retyped here. They live with the functions they describe, which is where an
+author will edit them; a second hand-maintained copy in this file would just be
 a third thing to forget.
 """
 
 from __future__ import annotations
 
+import ast
 from functools import lru_cache
-from typing import Any
+from pathlib import Path
 
 # Payload shape version. A bridge that does not recognise it treats the whole
 # response as unreadable and falls back to its embedded copy, which is the
@@ -83,22 +84,33 @@ SUBMISSION (community catalog, keyed/third-party widgets). Creating a public rep
 def tool_docs() -> dict[str, str]:
     """Every bridge tool's description, keyed by tool name.
 
-    Harvested from :mod:`studio_server.mcp_server`, the copy of the bridge that
-    ships inside the server, by reading the docstring off each function the
-    FastMCP tool manager registered. Asking the manager rather than scanning
-    module globals means a helper that happens to be public never leaks in, and
-    a tool that is added later needs no bookkeeping here.
+    Parsed out of ``mcp_server.py`` -- the copy of the bridge that ships inside
+    the server package -- by finding the ``@mcp.tool()`` coroutines and taking
+    each one's docstring.
 
-    Cached: the docstrings cannot change while the process runs, and the import
-    pulls in the MCP SDK, which is not work to repeat per request.
+    Read as source rather than imported, deliberately. Importing would mean this
+    endpoint could only answer where the MCP SDK is installed and importable,
+    and it is neither: the SDK is an extra the API server does not otherwise
+    need, and its module layout has moved between releases. Serving
+    documentation should not be able to fail because of a dependency that only
+    the stdio bridge process actually uses.
+
+    Cached: the file cannot change while the process runs.
     """
-    from studio_server import mcp_server
-
+    source_path = Path(__file__).with_name("mcp_server.py")
+    try:
+        tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError):
+        return {}
     out: dict[str, str] = {}
-    manager: Any = getattr(mcp_server.mcp, "_tool_manager", None)
-    tools = manager.list_tools() if manager is not None else []
-    for tool in tools:
-        text = (getattr(tool, "description", "") or "").strip()
-        if text:
-            out[str(tool.name)] = text
+    for node in tree.body:
+        if not isinstance(node, ast.AsyncFunctionDef):
+            continue
+        for dec in node.decorator_list:
+            func = dec.func if isinstance(dec, ast.Call) else dec
+            if isinstance(func, ast.Attribute) and func.attr == "tool":
+                text = (ast.get_docstring(node) or "").strip()
+                if text:
+                    out[node.name] = text
+                break
     return out

@@ -190,3 +190,32 @@ def test_the_served_docs_describe_the_current_contract(client) -> None:
     assert "on_schedule" in text and "selector_option" in text
     assert "fill_from" in text
     assert "no render.per_device_id" in text
+
+
+def test_tool_docs_do_not_need_the_mcp_sdk() -> None:
+    """Serving documentation must not be able to fail on a dependency only the
+    stdio bridge process uses. Harvesting these by importing mcp_server tied the
+    endpoint to the MCP SDK being installed AND to its current module layout,
+    which has moved between releases; CI, whose resolved `mcp` had no
+    `mcp.server.fastmcp`, failed on exactly that."""
+    import builtins
+    import sys
+
+    mcp_docs.tool_docs.cache_clear()
+    real_import = builtins.__import__
+
+    def blocked(name, *args, **kwargs):
+        if name.split(".")[0] == "mcp":
+            raise ModuleNotFoundError(f"No module named {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    hidden = {m: sys.modules.pop(m) for m in list(sys.modules) if m.split(".")[0] == "mcp"}
+    builtins.__import__ = blocked
+    try:
+        docs = mcp_docs.tool_docs()
+    finally:
+        builtins.__import__ = real_import
+        sys.modules.update(hidden)
+        mcp_docs.tool_docs.cache_clear()
+
+    assert set(docs) == _bridge_tool_names()
