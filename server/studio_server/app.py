@@ -14,6 +14,7 @@ from fastapi import Body, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import mcp_bridge, mcp_docs
 from .config import SIZE_DIMENSIONS, Settings, ha_options_debug
 from .events import EventBus
 from .flatten import flatten_fields
@@ -74,10 +75,42 @@ async def lifespan(app: FastAPI):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    app = FastAPI(title="tesserae-studio", version="0.9.1", lifespan=lifespan)
+    app = FastAPI(title="tesserae-studio", version="0.10.0", lifespan=lifespan)
     app.state.settings = settings
 
+    # Every bridge call names itself in its User-Agent, so noting it here is the
+    # whole of the detection: one hook, no per-endpoint bookkeeping, and a
+    # browser or curl is simply not a bridge and records nothing.
+    @app.middleware("http")
+    async def _note_bridge(request: Request, call_next):
+        mcp_bridge.record(request.headers.get("user-agent"))
+        return await call_next(request)
+
     # ---- Studio's own API -------------------------------------------------
+    @app.get("/studio/api/mcp/instructions")
+    async def mcp_instructions() -> JSONResponse:
+        """The agent-facing docs an installed bridge reads at startup.
+
+        Serving them means a corrected rule or a reworded tool description
+        reaches a bridge that was installed months ago, on its next agent
+        session, with no PyPI release. ``schema`` lets a bridge decide whether it
+        understands the payload at all, and ``bridge`` names the release this
+        Studio ships with so the bridge can tell the agent it is behind on the
+        parts that a release *is* still needed for."""
+        return JSONResponse(
+            {
+                "schema": mcp_docs.DOCS_SCHEMA,
+                "instructions": mcp_docs.INSTRUCTIONS,
+                "tool_docs": mcp_docs.tool_docs(),
+                # Read through the module, not a value imported at startup, so
+                # the served answer and mcp_bridge.status() can never disagree.
+                "bridge": {
+                    "latest": mcp_bridge.EXPECTED_VERSION,
+                    "upgrade": mcp_bridge.UPGRADE_COMMAND,
+                },
+            }
+        )
+
     @app.get("/studio/api/health")
     async def health() -> JSONResponse:
         status = await app.state.source.status()
@@ -95,6 +128,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "live_data": status["live_data"],
                 "url": settings.tesserae_url,
                 "path": str(settings.tesserae_path) if settings.tesserae_path else None,
+                # Which MCP bridge has connected, if any. "seen": false until
+                # one has, so a browser-only session shows nothing.
+                "bridge": mcp_bridge.status(),
             }
         )
 
@@ -532,6 +568,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return JSONResponse({"error": str(exc)}, status_code=400)
         _emit("scaffold", key)
         return JSONResponse({"ok": True, "key": key, "files": written})
+
+    @app.delete("/studio/api/widgets/{widget}")
+    async def delete_widget_endpoint(widget: str) -> JSONResponse:
+        """Delete a workspace widget, unregistering it from Tesserae first.
+
+        Order matters and is the whole reason this is not just an rmtree. When
+        the widget is registered by symlink, removing the folder first leaves a
+        dangling link in Tesserae's marketplace dir, which is exactly the state
+        that makes a widget "there but broken" rather than gone. So: drop the
+        registration by whichever route it exists on, then remove the folder.
+
+        Unregistering is best-effort on purpose. A widget that was never
+        registered, or whose Tesserae is currently unreachable, must still be
+        deletable, otherwise a stale duplicate is undeletable precisely when the
+        connection is down. Whatever went wrong is reported alongside the
+        deletion rather than blocking it."""
+        wdir = app.state.workspace.root / widget
+        if not (wdir / "plugin.json").is_file():
+            return JSONResponse({"error": f"{widget} is not a workspace widget."}, status_code=404)
+        unregistered: str | None = None
+        warning: str | None = None
+        if is_synced(settings.marketplace_dir, app.state.workspace.root, widget):
+            try:
+                unsync_widget(settings.marketplace_dir, app.state.workspace.root, widget)
+                unregistered = "symlink"
+            except SyncError as exc:
+                warning = f"could not remove the symlink: {exc}"
+        elif widget in await _live_keys():
+            try:
+                await app.state.tesserae.uninstall_widget(widget)
+                unregistered = "push"
+            except PushError as exc:
+                warning = f"could not uninstall from Tesserae: {exc.message}"
+        try:
+            res = app.state.workspace.delete_widget(widget)
+        except WorkspaceError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        _emit("delete", widget)
+        out = {"ok": True, **res, "unregistered": unregistered}
+        if warning:
+            out["warning"] = warning
+        return JSONResponse(out)
 
     # ---- Register a workspace widget with Tesserae (symlink) -------------
     async def _sync_state(widget: str) -> dict:

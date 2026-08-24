@@ -380,6 +380,155 @@ def _r_select_choices(files, manifest):
             )
 
 
+# A family member reaching its shared core:
+#   current_app.config["PLUGIN_REGISTRY"].get("weather_core")
+# Quoting and spacing vary, the plugin id does not, so capture that.
+_REGISTRY_GET = re.compile(
+    r"""PLUGIN_REGISTRY["']\s*\]\s*\.\s*get\s*\(\s*["']([a-z][a-z0-9_]*)["']""",
+)
+
+
+def _r_delegate_capability(files, manifest):
+    """A widget that fetches THROUGH a sibling plugin must declare
+    ``plugin:<other_id>``.
+
+    This one is easy to get backwards, and used to be documented backwards here.
+    The intuition is that the core owns egress, so the member needs nothing. The
+    host does not work that way: the core's request happens inside the MEMBER's
+    capability scope, so it is the member's allowlist the socket hook consults,
+    and a member that declares nothing relevant gets a CapabilityDenied at
+    render time rather than at lint time.
+
+    Only fires when the manifest declares ``requires`` at all. A widget with no
+    ``requires`` block is unenforced by design (the pre-capability behaviour), so
+    flagging it as an error would be wrong; it gets the nudge as a warning."""
+    py = files.get("server.py")
+    if py is None:
+        return
+    cores = {m.group(1) for m in _REGISTRY_GET.finditer(py)}
+    if not cores:
+        return
+    requires = manifest.get("requires")
+    declared = {r for r in (requires or []) if isinstance(r, str)}
+    missing = sorted(c for c in cores if f"plugin:{c}" not in declared)
+    if not missing:
+        return
+    names = ", ".join(f"plugin:{c}" for c in missing)
+    if isinstance(requires, list):
+        yield Finding(
+            "delegate-capability",
+            ERROR,
+            f"server.py fetches through {', '.join(sorted(missing))} but requires omits {names}. "
+            "The sibling's request runs inside THIS widget's capability scope, so without the "
+            "declaration its egress is denied at render time.",
+            "plugin.json",
+        )
+    else:
+        yield Finding(
+            "delegate-capability",
+            WARNING,
+            f"server.py fetches through {', '.join(sorted(missing))}; declare "
+            f'requires: ["{names}"] so the delegation survives capability enforcement.',
+            "plugin.json",
+        )
+
+
+def _option_names(manifest) -> set[str]:
+    opts = manifest.get("cell_options")
+    if not isinstance(opts, list):
+        return set()
+    return {o["name"] for o in opts if isinstance(o, dict) and isinstance(o.get("name"), str)}
+
+
+def _r_fill_from(files, manifest):
+    """``fill_from`` points one cell option at another that owns its value. The
+    schema checks the shape; only the manifest as a whole can tell whether the
+    controlling option is really there, and a dangling reference leaves the field
+    permanently blank and locked rather than erroring."""
+    opts = manifest.get("cell_options")
+    if not isinstance(opts, list):
+        return
+    names = _option_names(manifest)
+    by_name = {o.get("name"): o for o in opts if isinstance(o, dict)}
+    for opt in opts:
+        if not isinstance(opt, dict):
+            continue
+        fill = opt.get("fill_from")
+        if not isinstance(fill, dict):
+            continue
+        name = opt.get("name", "?")
+        controller = fill.get("option")
+        if not isinstance(controller, str) or controller not in names:
+            yield Finding(
+                "fill-from",
+                ERROR,
+                f"cell_option '{name}' fills from '{controller}', which is not a declared "
+                "cell_option. The field would stay empty and locked.",
+                "plugin.json",
+            )
+            continue
+        if controller == name:
+            yield Finding(
+                "fill-from",
+                ERROR,
+                f"cell_option '{name}' fills from itself.",
+                "plugin.json",
+            )
+            continue
+        # A map key that no choice can produce is dead weight, and usually a
+        # typo in a value rather than a deliberate spare entry.
+        parent = by_name.get(controller) or {}
+        choices = parent.get("choices")
+        mapping = fill.get("map")
+        if not isinstance(choices, list) or not isinstance(mapping, dict):
+            continue
+        values = {str(c.get("value")) for c in choices if isinstance(c, dict)}
+        unreachable = sorted(k for k in mapping if str(k) not in values)
+        if unreachable:
+            yield Finding(
+                "fill-from",
+                WARNING,
+                f"cell_option '{name}' maps values {unreachable} that '{controller}' "
+                "cannot take; those entries never fire.",
+                "plugin.json",
+            )
+
+
+def _r_updates(files, manifest):
+    """The ``updates`` block declares host-owned refresh triggers. The schema
+    covers its shape; these are the two things only the whole manifest knows.
+
+    A declaration never refreshes anything by itself, it makes the matching
+    per-placement opt-in available, so a wrong ``selector_option`` is silent:
+    the option simply never narrows the event and every placement refreshes."""
+    updates = manifest.get("updates")
+    if not isinstance(updates, dict):
+        return
+    names = _option_names(manifest)
+    on_change = updates.get("on_change")
+    if isinstance(on_change, list):
+        for entry in on_change:
+            if not isinstance(entry, dict):
+                continue
+            sel = entry.get("selector_option")
+            if isinstance(sel, str) and sel not in names:
+                yield Finding(
+                    "updates",
+                    ERROR,
+                    f"updates.on_change selector_option '{sel}' is not a declared cell_option, "
+                    "so the dependency never narrows to the placement's value.",
+                    "plugin.json",
+                )
+        if on_change and "server.py" not in files:
+            yield Finding(
+                "updates",
+                WARNING,
+                "updates.on_change declares server-side data sources, but this widget has no "
+                "server.py, so it has no server data to go stale.",
+                "plugin.json",
+            )
+
+
 def _r_smoke_test(files, manifest):
     smoke = next((p for p in files if p.endswith("test_smoke.py")), None)
     if not smoke:
@@ -406,6 +555,9 @@ RULES: list[Callable[[dict, dict], Iterable[Finding]]] = [
     _r_declare_egress,
     _r_data_schema_when_server,
     _r_select_choices,
+    _r_delegate_capability,
+    _r_fill_from,
+    _r_updates,
     _r_smoke_test,
 ]
 
@@ -426,6 +578,7 @@ SERVICE_RULES: list[Callable[[dict, dict], Iterable[Finding]]] = [
     _r_service_has_server,
     _r_no_raise,
     _r_declare_egress,
+    _r_delegate_capability,
     _r_select_choices,
 ]
 

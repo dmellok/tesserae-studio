@@ -1,6 +1,6 @@
 [project]
 name = "tesserae-studio-server"
-version = "0.9.2"
+version = "0.10.0"
 description = "Thin local server for tesserae-studio: reverse-proxies a running Tesserae and hosts Studio's own API."
 requires-python = ">=3.11"
 license = "AGPL-3.0-or-later"
@@ -48,9 +48,11 @@ extend-exclude = ["packages"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
-# The MCP server ships a long-form agent instructions block (prose lines meant to
-# read as sentences), so line-length doesn't apply there.
+# mcp_docs.py holds the long-form agent instructions block (prose lines meant to
+# read as sentences), so line-length doesn't apply there. mcp_server.py keeps the
+# ignore because it imports that text and may hold prose of its own.
 [tool.ruff.lint.per-file-ignores]
+"studio_server/mcp_docs.py" = ["E501"]
 "studio_server/mcp_server.py" = ["E501"]
 
 # FastAPI's dependency-injection defaults (Body/Depends/Query) are calls in

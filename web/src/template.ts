@@ -12,6 +12,7 @@ export const APP_HTML = `
       <div class="pills">
         <span class="pill" id="mode"><span class="dot"></span><span id="mode-text">·</span></span>
         <span class="pill" id="conn"><span class="dot"></span><span id="conn-text">connecting…</span></span>
+        <span class="pill" id="bridge" hidden><span class="dot"></span><span id="bridge-text"></span></span>
       </div>
       <button class="icon-btn" id="mcp-settings" title="Add an MCP client" aria-label="Add an MCP client"><i class="ph-bold ph-plugs-connected"></i></button>
       <button class="icon-btn" id="theme-toggle" title="Toggle theme" aria-label="Toggle light / dark theme"><i class="ph-bold ph-moon"></i></button>
@@ -57,6 +58,7 @@ export const APP_HTML = `
     <div class="tool-actions">
       <button class="btn ghost" id="new-widget"><i class="ph-bold ph-plus"></i> New widget</button>
       <button class="btn ghost" id="new-bundle"><i class="ph-bold ph-stack"></i> New bundle</button>
+      <button class="btn ghost danger" id="delete-widget" hidden><i class="ph-bold ph-trash"></i> Delete</button>
     </div>
   </div>
   <dialog id="bundle-dialog" class="dialog">

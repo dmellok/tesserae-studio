@@ -72,6 +72,18 @@ claude mcp add tesserae-studio -e STUDIO_URL=http://localhost:8770 -- tesserae-s
 The build loop and the widget contract rules are sent to the agent
 automatically at handshake (FastMCP instructions), so you don't paste a prompt.
 
+At startup the bridge asks your Studio for those rules rather than only using
+the copy baked into this package, so a corrected rule reaches you on the next
+agent session without a reinstall. If Studio is unreachable, older than the
+endpoint, or answers with something this version does not understand, the
+embedded copy is used instead and everything still works.
+
+The tool *list* and how results are handled do come from this package, so those
+need an upgrade. Studio knows which bridge version it ships with: when this one
+is behind, the agent is told to ask you to run `pipx upgrade tesserae-studio-mcp`
+(or your installer's equivalent) and restart it. Studio also shows a `bridge`
+pill once one has connected, marked for update when it is out of date.
+
 ## Run without installing
 
 From a clone:

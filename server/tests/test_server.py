@@ -371,6 +371,56 @@ def test_duplicate_widget_into_workspace(ws_client):
     assert {"client.js", "plugin.json"} <= {f["path"] for f in files}
 
 
+def test_delete_widget_removes_it_from_the_workspace(ws_client):
+    ws_client.post("/studio/api/scaffold", json={"name": "Throwaway"})
+    assert any(
+        w["key"] == "throwaway" for w in ws_client.get("/studio/api/catalog").json()["widgets"]
+    )
+    r = ws_client.request("DELETE", "/studio/api/widgets/throwaway")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] and body["files"] > 0 and body["unregistered"] is None
+    assert not any(
+        w["key"] == "throwaway" for w in ws_client.get("/studio/api/catalog").json()["widgets"]
+    )
+
+
+def test_delete_widget_rejects_an_unknown_key(ws_client):
+    assert ws_client.request("DELETE", "/studio/api/widgets/nope").status_code == 404
+
+
+def test_delete_widget_refuses_to_escape_the_workspace(ws_client, tmp_path):
+    """The key names a folder, so the guard that stops a traversal has to hold
+    here as much as it does on a read: a delete that escaped would take a
+    directory outside the workdir with it.
+
+    Asserted on the outcome rather than the status, because the refusal can come
+    from two different layers -- the router declining a path that normalises out
+    of the route, or the workspace rejecting the key -- and which one answers
+    first is not the point. What matters is that the directory survives."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    for key in ("..%2Foutside", "../outside", "/etc"):
+        assert not ws_client.request("DELETE", f"/studio/api/widgets/{key}").is_success
+    assert outside.is_dir()
+
+
+def test_workspace_delete_rejects_a_path_that_escapes(tmp_path):
+    """The router is one guard; this is the one underneath it, tested directly so
+    a future caller that reaches Workspace by another route is still covered."""
+    from studio_server.workspace import Workspace, WorkspaceError
+
+    root = tmp_path / "work"
+    (root / "keep").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    ws = Workspace(root)
+    for key in ("../outside", "nope", str(outside)):
+        with pytest.raises(WorkspaceError):
+            ws.delete_widget(key)
+    assert outside.is_dir() and (root / "keep").is_dir()
+
+
 # -- sync to Tesserae (symlink into marketplace) ----------------------------
 @pytest.fixture
 def sync_client(tmp_path):

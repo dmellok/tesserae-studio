@@ -9,6 +9,7 @@ take precedence over the read-only tesserae checkout when previewing.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +64,25 @@ class Workspace:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content)
         return {"key": key, "files": sorted(files)}
+
+    # -- removal -----------------------------------------------------------
+    def delete_widget(self, widget: str) -> dict[str, Any]:
+        """Remove a widget's folder from the workspace, permanently.
+
+        Goes through :meth:`_widget_dir`, so the same confinement that guards
+        reads guards this: the argument has to name a direct child of the
+        workdir that is really a directory, which rules out ``..`` segments, an
+        absolute path, and a symlink pointing somewhere else.
+
+        Deliberately not a trash/undo: the workspace is a scratch area whose
+        widgets are either published to the catalog or thrown away, and a
+        half-deleted widget lingering in a hidden folder is worse than a clean
+        removal. Callers are expected to unregister first (see the endpoint) so
+        the connected Tesserae is not left with a symlink into nothing."""
+        wdir = self._widget_dir(widget)
+        files = sum(1 for p in wdir.rglob("*") if p.is_file())
+        shutil.rmtree(wdir)
+        return {"key": widget, "files": files}
 
     # -- resolution --------------------------------------------------------
     def _widget_dir(self, widget: str) -> Path:

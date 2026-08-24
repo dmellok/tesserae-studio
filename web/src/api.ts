@@ -75,6 +75,16 @@ export const duplicateWidget = (source: string, name?: string) =>
     body: JSON.stringify({ source, name }),
   });
 
+// Remove a workspace widget for good. The server unregisters it from the
+// connected Tesserae first, so a symlinked widget does not leave a dangling
+// link behind; `warning` reports an unregister that could not be completed
+// (unreachable Tesserae), which does not stop the delete.
+export const deleteWidget = (widget: string) =>
+  getJson<{ ok: boolean; key: string; files: number; unregistered: string | null; warning?: string }>(
+    `/studio/api/widgets/${encodeURIComponent(widget)}`,
+    { method: "DELETE" },
+  );
+
 export interface RegisterState {
   ok: boolean;
   method: "symlink" | "push";

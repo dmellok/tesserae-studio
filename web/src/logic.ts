@@ -28,6 +28,32 @@ export function faithfulSize(sizeMode: string, dims: { w: number; h: number }): 
   return longer <= 200 ? "xs" : longer <= 400 ? "sm" : longer <= 700 ? "md" : "lg";
 }
 
+// The MCP bridge pill, or null when there is nothing to say.
+//
+// Null covers two cases that look different but read the same to the operator:
+// an older Studio server that reports no bridge block at all, and a Studio
+// nobody has pointed an agent at. Both should show nothing rather than an empty
+// or speculative pill, so the pill's presence means "a bridge is talking to me".
+export function bridgePill(h: Health): PillState | null {
+  const b = h.bridge;
+  if (!b?.seen) return null;
+  if (!b.update_available) {
+    return {
+      kind: "ok",
+      label: `bridge ${b.version}`,
+      title: `tesserae-studio-mcp ${b.version} is connected and current.`,
+    };
+  }
+  return {
+    kind: "warn",
+    label: `bridge ${b.version} · update`,
+    title:
+      `tesserae-studio-mcp ${b.version} is connected; this Studio ships ${b.latest}. ` +
+      `The tool list and result handling come from the installed bridge, so some tools ` +
+      `may be missing. Run \`${b.upgrade}\` and restart the agent.`,
+  };
+}
+
 // Map a health snapshot to the mode + connection status pills.
 export function healthPills(h: Health): { mode: PillState; conn: PillState } {
   let mode: PillState;

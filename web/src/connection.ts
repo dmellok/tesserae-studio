@@ -2,7 +2,7 @@
 // connection pills, and gate the faithful render tier on Tesserae being reachable.
 
 import { getHealth } from "./api";
-import { healthPills } from "./logic";
+import { bridgePill, healthPills } from "./logic";
 import { updateTierButtons } from "./preview";
 import { state } from "./state";
 import { setPill } from "./ui";
@@ -13,6 +13,10 @@ export async function refreshHealth() {
     const { mode, conn } = healthPills(h);
     setPill("mode", "mode-text", mode.kind, mode.label, mode.title);
     setPill("conn", "conn-text", conn.kind, conn.label, conn.title);
+    const bridge = bridgePill(h);
+    const bridgeEl = document.getElementById("bridge");
+    if (bridgeEl) bridgeEl.hidden = bridge === null;
+    if (bridge) setPill("bridge", "bridge-text", bridge.kind, bridge.label, bridge.title);
     state.faithful = h.faithful;
     updateTierButtons();
   } catch {

@@ -34,6 +34,11 @@
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn.ghost { background: var(--t-surface); color: var(--t-fg-soft); border-color: var(--t-border-strong); }
 .btn.ghost:hover:not(:disabled) { background: var(--t-surface-sunk); color: var(--t-fg); }
+/* Destructive action. Reads as an ordinary ghost button until hovered, so it
+   sits in a toolbar without shouting; the colour arrives at the moment the
+   pointer is on it and the click is about to happen. */
+.btn.ghost.danger { color: var(--t-danger); }
+.btn.ghost.danger:hover:not(:disabled) { background: var(--t-danger-bg); color: var(--t-danger); border-color: var(--t-danger); }
 .btn kbd {
   font-family: var(--t-font-mono); font-size: 10px; font-weight: 500;
   padding: 1px 4px; border-radius: 4px;

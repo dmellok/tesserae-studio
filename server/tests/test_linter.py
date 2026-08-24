@@ -271,3 +271,136 @@ def test_manifest_schema_validation():
     bad = {**CLEAN_MANIFEST, "kind": "not-a-kind"}
     findings = lint_widget(CLEAN_FILES, bad, schema=schema)
     assert any(f["rule"] == "manifest-schema" for f in findings)
+
+
+# -- delegation, fill_from, updates (Tesserae contract, Aug 2026) ------------
+DELEGATING_SERVER = (
+    "from flask import current_app\n\n"
+    "def fetch(options, settings, *, ctx):\n"
+    '    core = current_app.config["PLUGIN_REGISTRY"].get("weather_core")\n'
+    "    return core.server_module.fetch(options, settings, ctx=ctx)\n"
+)
+
+
+def test_delegate_capability_errors_when_requires_omits_the_sibling():
+    """A declared requires block that forgets the delegate is the bad case: the
+    sibling's fetch runs inside this widget's scope and gets denied."""
+    files = {**CLEAN_FILES, "server.py": DELEGATING_SERVER}
+    manifest = {**CLEAN_MANIFEST, "requires": ["settings:plugin"], "data_schema": {"fields": []}}
+    found = [f for f in lint_widget(files, manifest) if f["rule"] == "delegate-capability"]
+    assert found and found[0]["level"] == "error"
+    assert "plugin:weather_core" in found[0]["message"]
+
+
+def test_delegate_capability_satisfied_by_the_declaration():
+    files = {**CLEAN_FILES, "server.py": DELEGATING_SERVER}
+    manifest = {
+        **CLEAN_MANIFEST,
+        "requires": ["plugin:weather_core"],
+        "data_schema": {"fields": []},
+    }
+    assert "delegate-capability" not in ids(files, manifest)
+
+
+def test_delegate_capability_only_warns_without_a_requires_block():
+    """No requires block at all means unenforced, the pre-capability behaviour,
+    so this is a nudge rather than a failure."""
+    files = {**CLEAN_FILES, "server.py": DELEGATING_SERVER}
+    manifest = {**CLEAN_MANIFEST, "data_schema": {"fields": []}}
+    found = [f for f in lint_widget(files, manifest) if f["rule"] == "delegate-capability"]
+    assert found and found[0]["level"] == "warning"
+
+
+def test_fill_from_must_name_a_real_option():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "cell_options": [
+            {
+                "name": "label",
+                "type": "string",
+                "label": "Label",
+                "fill_from": {"option": "nope", "map": {}},
+            },
+        ],
+    }
+    found = [f for f in lint_widget(CLEAN_FILES, manifest) if f["rule"] == "fill-from"]
+    assert found and found[0]["level"] == "error"
+
+
+def test_fill_from_warns_on_a_value_the_controller_cannot_take():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "cell_options": [
+            {
+                "name": "mode",
+                "type": "select",
+                "label": "Mode",
+                "choices": [{"value": "a", "label": "A"}],
+            },
+            {
+                "name": "label",
+                "type": "string",
+                "label": "Label",
+                "fill_from": {"option": "mode", "map": {"a": "Ay", "z": "Zed"}},
+            },
+        ],
+    }
+    found = [f for f in lint_widget(CLEAN_FILES, manifest) if f["rule"] == "fill-from"]
+    assert found and found[0]["level"] == "warning" and "z" in found[0]["message"]
+
+
+def test_fill_from_clean_when_the_controller_exists():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "cell_options": [
+            {
+                "name": "mode",
+                "type": "select",
+                "label": "Mode",
+                "choices": [{"value": "a", "label": "A"}],
+            },
+            {
+                "name": "label",
+                "type": "string",
+                "label": "Label",
+                "fill_from": {"option": "mode", "map": {"a": "Ay"}},
+            },
+        ],
+    }
+    assert "fill-from" not in ids(CLEAN_FILES, manifest)
+
+
+def test_updates_selector_option_must_exist():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "updates": {
+            "on_change": [{"source": "personal_data.reminders", "selector_option": "list_id"}]
+        },
+    }
+    files = {**CLEAN_FILES, "server.py": "def fetch(o, s, *, ctx):\n    return {}\n"}
+    manifest = {**manifest, "data_schema": {"fields": []}}
+    found = [f for f in lint_widget(files, manifest) if f["rule"] == "updates"]
+    assert found and found[0]["level"] == "error"
+
+
+def test_updates_clean_when_the_selector_is_declared():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "cell_options": [{"name": "list_id", "type": "string", "label": "List"}],
+        "updates": {
+            "on_change": [{"source": "personal_data.reminders", "selector_option": "list_id"}],
+            "on_schedule": [{"kind": "daily", "suggested_at": "06:00"}],
+        },
+        "data_schema": {"fields": []},
+    }
+    files = {**CLEAN_FILES, "server.py": "def fetch(o, s, *, ctx):\n    return {}\n"}
+    assert "updates" not in ids(files, manifest)
+
+
+def test_updates_on_change_without_a_server_is_a_warning():
+    manifest = {
+        **CLEAN_MANIFEST,
+        "updates": {"on_change": [{"source": "personal_data.reminders"}]},
+    }
+    found = [f for f in lint_widget(CLEAN_FILES, manifest) if f["rule"] == "updates"]
+    assert found and found[0]["level"] == "warning"

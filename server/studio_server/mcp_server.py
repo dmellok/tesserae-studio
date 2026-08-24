@@ -23,56 +23,13 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP, Image
 
+# The handshake copy lives in mcp_docs, which is also what the server hands to
+# an installed bridge over /studio/api/mcp/instructions. One text, two readers.
+from .mcp_docs import INSTRUCTIONS
+
 STUDIO_URL = os.environ.get("STUDIO_URL", "http://localhost:8770").rstrip("/")
 
-# Sent to the connecting agent at handshake so it drives the build loop the way
-# that actually works against Tesserae (these rules were learned the hard way).
-_INSTRUCTIONS = """\
-You build Tesserae widgets through these tools (mcp__tesserae-studio__*). Follow this loop and these rules.
-
-BUILD LOOP
-1. scaffold_widget(name, archetype, server=true). Archetypes: stat|list|chart|status|weather|calendar|image.
-2. Read the generated files to learn the skeleton, then edit with write_file (whole-file overwrite, no partial edit).
-3. lint_widget until 0 errors.
-4. register_widget. A new widget serves its client.js immediately on the in-process reload, no restart (Tesserae reads the plugin registry fresh per request as of the plugin-asset fix). ONE EXCEPTION: a widget that declares an admin blueprint() still needs a single Tesserae restart to wire its admin route, so batch those, register all of them, then ask the user for one restart. Widget UPDATES (already-registered) never need a restart.
-5. faithful_render(size=xs|sm|md|lg, options={...}). Pass options to QA a configured state. Base font scales with container WIDTH, so also check extreme aspect ratios (wide-short cells overflow in ways the xs/sm size tokens don't reveal), not just size. For live data across all sizes/fragments, build a canvas via the tesserae MCP and render_preview.
-6. mine_data_schema(apply=true) once the data shape is final.
-
-SERVICES (non-placeable data sources)
-- To make an API available to a canvas code/data element (not draw a tile), scaffold_service(name) instead of a widget: kind "service", server.py fetch() only, no render/fragments, supports.sizes may be []. An empty-options probe MUST return a self-describing {service, auth, scopes, usage} map; a chosen options.scope returns the API JSON; failure returns {"error": ...}, never raise. Lint + register like a widget; it won't appear in the canvas picker (source it by key).
-
-LEARN FROM SIBLINGS
-- read_file / list_files also work on the connected checkout's REFERENCE widgets (e.g. ha_core, ha_history). Read a family's server.py + client.js to copy its data pattern and house style, don't guess.
-- design_system(name) returns the Spectra house-style CSS: spectra-widgets (widget classes like .w-title / list rows / .is-zebra), spectra-tokens (--space-*, --fs-*), spectra-styles. Match these on the first pass.
-- edit_file(widget, path, old, new) makes a one-line change without resending the whole file.
-
-DIAGNOSING A FAILED / BLANK RENDER (do this before re-editing client.js)
-- Confirm the server side first with probe_widget_data: if it returns your real output (or your friendly error), server.py is loaded, so the problem is in client.js, fix the JS.
-- "Failed to fetch dynamically imported module .../client.js" now almost always means a genuine JS error (syntax, bad import path), not a reload gate. The only remaining reload case is a brand-new widget that declares an admin blueprint() (needs one restart).
-
-HARD RULES
-- Lint: data_schema.fields[].type must be num | str | arr (never "int"). server.py must NEVER use `raise`, return {"error": "..."} or thread (value, error) tuples.
-- select / multiselect cell_options: the choice list key is "choices" (or "choices_from"), NOT "options". A mis-named key parses but the config dropdown renders empty (the linter now flags this); verify with get_widget_options.
-- Secrets (API keys) = settings[] with "secret": true, settings.get(...). Per-cell config = cell_options[], options.get(...).
-- Egress: an own-host widget declares requires: ["network:<exact-host>", "settings:plugin"], caches in ctx["data_dir"], and returns friendly error strings (they render verbatim). EXCEPTION: a widget that reads a shared family core (e.g. ha_core via current_app.config["PLUGIN_REGISTRY"].get("ha_core")) OMITS requires and declares no host, the core owns egress. Mirror the family; do not add network requires.
-- Pure client-side widgets (generative art, clocks, countdowns) need no data binding: server.py may return a tiny dict (e.g. a UTC day/seed for deterministic-per-day output) or you skip live data. Don't invent a fetch the widget doesn't need.
-- client.js: default export render(shadow, ctx); paint ONLY from Spectra semantic tokens (--surface, --surface-sunken, --text-primary/-secondary/-muted, --accent-1..6 + --accent-*-soft); no hardcoded hex in CSS/style strings (a genuine literal like white-on-a-fixed-scrim needs a /* identity */ comment on that line; hex in a JS data array/palette is fine); cqmin / container queries; ph-bold icons; no borders, no animations, no client-side fetch; idempotent innerHTML; link /static/style/spectra-widgets.css. fragments[] and branch on ctx.cell.fragment for canvas-placeable pieces (declare NO fragments for one indivisible view rather than an unused one).
-- Full-bleed / edge-to-edge art: one square SVG viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" inside a container-type:size wrapper (width/height 100%, overflow hidden) fills any cell aspect ratio without distortion.
-
-DATA REALISM (before coding)
-- Check what the API returns for a plain key. If a requested stat needs OAuth/analytics or history the API doesn't expose, say so and adapt (self-track snapshots in data_dir for deltas; swap an impossible metric for an honest one). Flag substitutions.
-
-AUTHORITATIVE SPEC: the tesserae repo docs/widgets.md + docs/dev/writing-a-widget.md.
-
-SUBMISSION (community catalog, keyed/third-party widgets). Creating a public repo, release, or PR is outward and gated: ASK the user before creating anything public.
-- Each widget is its OWN public repo tesserae-widget-<slug> (files at ROOT, AGPL-3.0), tagged vX.Y.Z.
-- release.tarball_url is the GitHub SOURCE ARCHIVE (.../archive/refs/tags/vX.Y.Z.tar.gz) and release.sha256 is the sha256 of THAT archive (stable/reproducible), NOT package_widget's tarball.
-- Tags are a CLOSED enum (calendar, clock, finance, github, home-assistant, media, news, sports, transit, utility, weather); generative / art / picture widgets use "media". Description <= 280 chars.
-- generate_catalog_entry validates against the real schema and rejects unknown tags. Then PR to dmellok/tesserae-widgets: entry in widgets.json (2-space indent, alphabetical by id; key order id,name,description,icon,author,tags,kind,tesserae_compat,official,screenshot_sizes,release,source) plus screenshots/<id>/lg.png (1200x800; required, CI rejects without it).
-- Screenshots MUST come from Tesserae's faithful renderer (faithful_render), never a hand-rasterized SVG or a local headless browser.
-"""
-
-mcp = FastMCP("tesserae-studio", instructions=_INSTRUCTIONS)
+mcp = FastMCP("tesserae-studio", instructions=INSTRUCTIONS)
 
 _client: httpx.AsyncClient | None = None
 
@@ -173,6 +130,21 @@ async def duplicate_widget(source: str, name: str | None = None) -> dict:
     """Copy an existing widget (workspace or a connected Tesserae reference
     widget) into the workspace as a new editable widget."""
     return await _json("POST", "/studio/api/duplicate", json={"source": source, "name": name})
+
+
+@mcp.tool()
+async def delete_widget(widget: str) -> dict:
+    """Delete a workspace widget and every file in it, permanently.
+
+    Unregisters it from the connected Tesserae first (symlink or push, whichever
+    it is on), so nothing is left pointing at a folder that no longer exists.
+    Only workspace widgets can be deleted; the connected checkout's reference
+    widgets are not Studio's to remove. Use this to clear away a failed first
+    attempt rather than leaving two widgets with the same name in the picker.
+
+    DESTRUCTIVE and not undoable: confirm with the operator before calling it on
+    anything they did not just ask you to throw away."""
+    return await _json("DELETE", f"/studio/api/widgets/{widget}")
 
 
 @mcp.tool()

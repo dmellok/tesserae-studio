@@ -175,6 +175,22 @@ The bridge lives in [`packages/tesserae-studio-mcp/`](packages/tesserae-studio-m
 to PyPI); its only real dependency is the `mcp` SDK plus `httpx`. The `tesserae-studio-mcp`
 console script also ships with the Studio server package for anyone who installed from source.
 
+### Keeping the bridge current
+
+The bridge is installed separately from Studio, so the two versions drift. Most of what the
+agent reads does not have to: at startup the bridge fetches `/studio/api/mcp/instructions`
+and prefers the handshake rules and per-tool descriptions Studio serves over the copies baked
+into its own wheel, so a corrected rule reaches an already-installed bridge on the next agent
+session. It falls back to the embedded copy whenever Studio is unreachable, is older than the
+endpoint, or returns a payload shape it does not recognise, so an offline bridge still works.
+
+What a served payload cannot fix is the tool *list* and the bridge's own result handling,
+which move only with a release. So Studio also names the bridge version it ships with, and a
+bridge behind that appends a line to its handshake telling the agent to ask you to run
+`pipx upgrade tesserae-studio-mcp`. Every bridge call identifies itself in its `User-Agent`,
+so Studio shows a `bridge <version>` pill once one has connected, marked `· update` when it
+is behind. Nothing is shown before a bridge has actually called.
+
 ## Configuration
 
 | Env var                | Default                  | Purpose                                      |

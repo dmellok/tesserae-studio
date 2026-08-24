@@ -45,6 +45,19 @@ export interface Health {
   live_data: boolean; // real fetch() data vs sample
   url: string;
   path: string | null;
+  // The MCP bridge that has connected, if one has. Absent on an older Studio
+  // server, so every reader treats it as optional.
+  bridge?: BridgeStatus;
+}
+
+export interface BridgeStatus {
+  seen: boolean; // false until a bridge has actually called
+  version: string;
+  client: string;
+  at: number | null;
+  latest: string; // the bridge this Studio ships with
+  upgrade: string;
+  update_available: boolean;
 }
 
 export interface SizePreset {

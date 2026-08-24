@@ -2,7 +2,7 @@
 // populate the widget and fragment selects, drive selection, and the toolbar's
 // "New widget" / "New bundle" scaffold dialogs.
 
-import { getCatalog, scaffoldBundle, scaffoldWidget } from "./api";
+import { deleteWidget, getCatalog, scaffoldBundle, scaffoldWidget } from "./api";
 import { loadWidgetConfig } from "./configForm";
 import { markLocalMutation } from "./events";
 import { parseMembers } from "./logic";
@@ -31,9 +31,20 @@ export async function selectWidget(key: string) {
   state.widget = state.widgets.find((w) => w.key === key);
   if (!state.widget) return;
   $<HTMLSelectElement>("widget").value = key;
+  syncDeleteButton();
   populateFragments();
   await loadWidgetConfig(key); // sets state.options (defaults) before first render
   await Promise.all([loadEditor(state.widget), render()]);
+}
+
+// Only the manifest `name` is shown normally, but nothing stops two widgets
+// carrying the same one -- a duplicate, or a second attempt at the same idea --
+// and then the picker offers two identical rows and the author has to guess.
+// The folder key is what actually differs, so it is appended to every entry in
+// a colliding group and to nothing else.
+function labelFor(w: { key: string; name: string; editable?: boolean }, collides: boolean) {
+  const base = w.editable ? `${w.name}  ·  editable` : w.name;
+  return collides ? `${base}  (${w.key})` : base;
 }
 
 export async function refreshCatalog(keepKey?: string) {
@@ -41,10 +52,12 @@ export async function refreshCatalog(keepKey?: string) {
   const catalog = await getCatalog();
   state.widgets = catalog.widgets ?? [];
   widgetSel.innerHTML = "";
+  const nameCount = new Map<string, number>();
+  for (const w of state.widgets) nameCount.set(w.name, (nameCount.get(w.name) ?? 0) + 1);
   for (const w of state.widgets) {
     const opt = document.createElement("option");
     opt.value = w.key;
-    opt.textContent = w.editable ? `${w.name}  ·  editable` : w.name;
+    opt.textContent = labelFor(w, (nameCount.get(w.name) ?? 0) > 1);
     widgetSel.appendChild(opt);
   }
   const key =
@@ -53,6 +66,31 @@ export async function refreshCatalog(keepKey?: string) {
     state.widget = state.widgets.find((w) => w.key === key);
     widgetSel.value = key;
     populateFragments();
+  }
+  syncDeleteButton();
+}
+
+// Delete only ever applies to a workspace widget: the reference widgets belong
+// to the connected Tesserae checkout and are not Studio's to remove.
+function syncDeleteButton() {
+  $<HTMLButtonElement>("delete-widget").hidden = !state.widget?.editable;
+}
+
+async function removeWidget() {
+  const w = state.widget;
+  if (!w?.editable) return;
+  const registered = w.registered ? "\n\nIt is registered with Tesserae; that will be undone first." : "";
+  if (!confirm(`Delete ${w.name} (${w.key}) and all its files?${registered}\n\nThis cannot be undone.`)) return;
+  markLocalMutation();
+  try {
+    const res = await deleteWidget(w.key);
+    await refreshCatalog();
+    const next = state.widgets[0]?.key;
+    if (next) await selectWidget(next);
+    const warn = res.warning ? ` (${res.warning})` : "";
+    setNote(`Deleted ${w.key}, ${res.files} file${res.files === 1 ? "" : "s"}.${warn}`, res.warning ? "err" : "");
+  } catch (err) {
+    setNote(`Delete failed: ${err instanceof Error ? err.message : String(err)}`, "err");
   }
 }
 
@@ -95,6 +133,7 @@ export function initCatalog() {
   const widgetSel = $<HTMLSelectElement>("widget");
   const fragmentSel = $<HTMLSelectElement>("fragment");
   widgetSel.addEventListener("change", () => void selectWidget(widgetSel.value));
+  $<HTMLButtonElement>("delete-widget").addEventListener("click", () => void removeWidget());
   fragmentSel.addEventListener("change", () => {
     state.fragment = state.widget?.fragments.find((f) => f.id === fragmentSel.value);
     void render();

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bridgePill,
   escapeHtml,
   faithfulSize,
   healthPills,
@@ -186,5 +187,52 @@ describe("parseMembers", () => {
   it("returns an empty list for empty input", () => {
     expect(parseMembers("")).toEqual([]);
     expect(parseMembers("   \n  ")).toEqual([]);
+  });
+});
+
+
+describe("bridgePill", () => {
+  const base: Health = {
+    studio: "ok",
+    tesserae: "ok",
+    mcp: "ok",
+    mode: "live",
+    interactive: true,
+    faithful: true,
+    live_data: true,
+    url: "http://tess.test",
+    path: null,
+  };
+  const bridge = (over: Partial<NonNullable<Health["bridge"]>>) => ({
+    seen: true,
+    version: "0.6.0",
+    client: "tesserae-studio-mcp/0.6.0",
+    at: 1,
+    latest: "0.7.0",
+    upgrade: "pipx upgrade tesserae-studio-mcp",
+    update_available: false,
+    ...over,
+  });
+
+  it("says nothing until a bridge has connected", () => {
+    expect(bridgePill(base)).toBeNull();
+    expect(bridgePill({ ...base, bridge: bridge({ seen: false }) })).toBeNull();
+  });
+
+  it("says nothing on an older Studio that reports no bridge block", () => {
+    expect(bridgePill({ ...base, bridge: undefined })).toBeNull();
+  });
+
+  it("reports a current bridge quietly", () => {
+    const pill = bridgePill({ ...base, bridge: bridge({ version: "0.7.0" }) });
+    expect(pill?.kind).toBe("ok");
+    expect(pill?.label).toBe("bridge 0.7.0");
+  });
+
+  it("flags a stale bridge with the upgrade command", () => {
+    const pill = bridgePill({ ...base, bridge: bridge({ update_available: true }) });
+    expect(pill?.kind).toBe("warn");
+    expect(pill?.label).toContain("update");
+    expect(pill?.title).toContain("pipx upgrade tesserae-studio-mcp");
   });
 });
