@@ -290,6 +290,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         opts = manifest.get("cell_options")
         return JSONResponse({"key": key, "options": opts if isinstance(opts, list) else []})
 
+    @app.get("/studio/api/widgets/{key}/choices")
+    async def widget_choices(key: str, option: str) -> JSONResponse:
+        """Materialised choices for one declared widget option."""
+        import json
+
+        files = _widget_files(key)
+        if "plugin.json" not in files:
+            return JSONResponse({"error": f"unknown widget {key!r}"}, status_code=404)
+        try:
+            manifest = json.loads(files["plugin.json"])
+        except json.JSONDecodeError:
+            return JSONResponse({"error": "plugin.json is not valid JSON"}, status_code=400)
+        options = manifest.get("cell_options")
+        spec = None
+        if isinstance(options, list):
+            spec = next(
+                (item for item in options if isinstance(item, dict) and item.get("name") == option),
+                None,
+            )
+        if spec is None:
+            return JSONResponse(
+                {"error": f"widget {key!r} has no option {option!r}"}, status_code=404
+            )
+        if spec.get("choices_from"):
+            try:
+                choices = await app.state.tesserae.widget_choices(key, option)
+            except PushError as exc:
+                return JSONResponse({"error": exc.message}, status_code=exc.status)
+            return JSONResponse(
+                {"key": key, "option": option, "total": len(choices), "choices": choices}
+            )
+        choices = spec.get("choices")
+        if isinstance(choices, list):
+            return JSONResponse(
+                {"key": key, "option": option, "total": len(choices), "choices": choices}
+            )
+        return JSONResponse({"error": f"option {option!r} has no choices"}, status_code=400)
+
     @app.get("/studio/api/widgets/{key}/admin")
     async def widget_admin(key: str) -> JSONResponse:
         """Whether the widget/companion ships an admin page (server.py exports a
