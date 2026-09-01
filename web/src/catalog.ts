@@ -11,6 +11,8 @@ import { state } from "./state";
 import { $, setNote } from "./ui";
 import { loadEditor } from "./workspace";
 
+let selectionGeneration = 0;
+
 function populateFragments() {
   const fragmentSel = $<HTMLSelectElement>("fragment");
   fragmentSel.innerHTML = "";
@@ -28,13 +30,18 @@ function populateFragments() {
 }
 
 export async function selectWidget(key: string) {
-  state.widget = state.widgets.find((w) => w.key === key);
-  if (!state.widget) return;
+  const widget = state.widgets.find((w) => w.key === key);
+  if (!widget) return;
+  const generation = ++selectionGeneration;
+  state.widget = widget;
   $<HTMLSelectElement>("widget").value = key;
   syncDeleteButton();
   populateFragments();
   await loadWidgetConfig(key); // sets state.options (defaults) before first render
-  await Promise.all([loadEditor(state.widget), render()]);
+  // Object identity is insufficient for A -> B -> A; only the newest selection
+  // may continue into the editor and preview after asynchronous config loading.
+  if (generation !== selectionGeneration) return;
+  await Promise.all([loadEditor(widget), render()]);
 }
 
 // Only the manifest `name` is shown normally, but nothing stops two widgets

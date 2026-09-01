@@ -217,6 +217,144 @@ def test_workspace_widget_in_catalog_editable(ws_client):
     assert mine[0]["origin"] == "workspace"
 
 
+def test_static_widget_choices_are_returned_without_tesserae(ws_client):
+    manifest = {
+        "kind": "widget",
+        "name": "Mine",
+        "cell_options": [
+            {
+                "name": "mode",
+                "type": "select",
+                "choices": [
+                    {"value": "compact", "label": "Compact"},
+                    {"value": "full", "label": "Full"},
+                ],
+            }
+        ],
+    }
+    ws_client.put(
+        "/studio/api/files/mywidget/plugin.json",
+        json={"content": json.dumps(manifest)},
+    )
+    ws_client.app.state.tesserae.raw._transport = httpx.MockTransport(
+        lambda request: (_ for _ in ()).throw(AssertionError(f"unexpected request: {request.url}"))
+    )
+
+    response = ws_client.get("/studio/api/widgets/mywidget/choices?option=mode")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "key": "mywidget",
+        "option": "mode",
+        "total": 2,
+        "choices": [
+            {"value": "compact", "label": "Compact"},
+            {"value": "full", "label": "Full"},
+        ],
+    }
+
+
+def test_dynamic_widget_choices_override_manifest_choices(ws_client):
+    manifest = {
+        "kind": "widget",
+        "name": "Mine",
+        "cell_options": [
+            {
+                "name": "entity",
+                "type": "select",
+                "choices_from": "entity",
+                "choices": [{"value": "stale", "label": "Stale"}],
+            }
+        ],
+    }
+    ws_client.put(
+        "/studio/api/files/mywidget/plugin.json",
+        json={"content": json.dumps(manifest)},
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/mcp/widgets/mywidget/choices"
+        assert request.url.params["option"] == "entity"
+        return httpx.Response(
+            200,
+            json={
+                "key": "mywidget",
+                "option": "entity",
+                "total": 1,
+                "offset": 0,
+                "choices": [{"value": "sensor.live", "label": "Live sensor"}],
+            },
+        )
+
+    ws_client.app.state.tesserae.raw._transport = httpx.MockTransport(handler)
+
+    response = ws_client.get("/studio/api/widgets/mywidget/choices?option=entity")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "key": "mywidget",
+        "option": "entity",
+        "total": 1,
+        "choices": [{"value": "sensor.live", "label": "Live sensor"}],
+    }
+
+
+def test_dynamic_widget_choices_preserve_tesserae_error(ws_client):
+    manifest = {
+        "kind": "widget",
+        "name": "Mine",
+        "cell_options": [{"name": "entity", "type": "select", "choices_from": "entity"}],
+    }
+    ws_client.put(
+        "/studio/api/files/mywidget/plugin.json",
+        json={"content": json.dumps(manifest)},
+    )
+    ws_client.app.state.tesserae.raw._transport = httpx.MockTransport(
+        lambda request: httpx.Response(404, json={"error": "widget is not registered"})
+    )
+
+    response = ws_client.get("/studio/api/widgets/mywidget/choices?option=entity")
+
+    assert response.status_code == 404
+    assert response.json() == {"error": "widget is not registered"}
+
+
+def test_dynamic_widget_choices_report_unreachable_tesserae(ws_client):
+    manifest = {
+        "kind": "widget",
+        "name": "Mine",
+        "cell_options": [{"name": "entity", "type": "select", "choices_from": "entity"}],
+    }
+    ws_client.put(
+        "/studio/api/files/mywidget/plugin.json",
+        json={"content": json.dumps(manifest)},
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    ws_client.app.state.tesserae.raw._transport = httpx.MockTransport(handler)
+
+    response = ws_client.get("/studio/api/widgets/mywidget/choices?option=entity")
+
+    assert response.status_code == 503
+    assert response.json() == {"error": "Connected Tesserae is unavailable"}
+
+
+def test_widget_choices_reject_unknown_targets_before_tesserae(ws_client):
+    ws_client.app.state.tesserae.raw._transport = httpx.MockTransport(
+        lambda request: (_ for _ in ()).throw(AssertionError(f"unexpected request: {request.url}"))
+    )
+
+    missing_widget = ws_client.get("/studio/api/widgets/missing/choices?option=entity")
+    missing_option = ws_client.get("/studio/api/widgets/mywidget/choices?option=missing")
+
+    assert missing_widget.status_code == 404
+    assert missing_widget.json() == {"error": "unknown widget 'missing'"}
+    assert missing_option.status_code == 404
+    assert missing_option.json() == {"error": "widget 'mywidget' has no option 'missing'"}
+
+
 def test_workspace_list_files(ws_client):
     files = ws_client.get("/studio/api/files/mywidget").json()["files"]
     paths = {f["path"]: f for f in files}

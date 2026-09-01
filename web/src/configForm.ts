@@ -4,11 +4,12 @@
 
 import {
   getWidgetAdmin,
+  getWidgetChoices,
   getWidgetOptions,
   getWidgetSettings,
   setWidgetSettings,
 } from "./api";
-import type { WidgetOption, WidgetSetting } from "./api";
+import type { WidgetChoice, WidgetOption, WidgetSetting } from "./api";
 import { markLocalMutation } from "./events";
 import { escapeHtml, optionDefaults } from "./logic";
 import { render } from "./preview";
@@ -19,6 +20,22 @@ let schema: WidgetOption[] = [];
 let adminUrl = "";
 let settingsSchema: WidgetSetting[] = [];
 let settingsValues: Record<string, unknown> = {};
+let loadingChoices = new Set<string>();
+let choiceErrors = new Map<string, string>();
+let configGeneration = 0;
+
+function choicesWithCurrent(opt: WidgetOption, value: unknown): WidgetChoice[] {
+  const choices = opt.choices || [];
+  if (!opt.choices_from || value == null) return choices;
+  const selected = (Array.isArray(value) ? value : [value]).map(String);
+  const known = new Set(choices.map((choice) => choice.value));
+  // Dynamic sources may remove a saved value; keeping it visible prevents the
+  // control from disagreeing with the value still sent to preview rendering.
+  const missing = selected
+    .filter((item) => !known.has(item))
+    .map((item) => ({ value: item, label: item }));
+  return [...missing, ...choices];
+}
 
 function controlHtml(opt: WidgetOption): string {
   const name = opt.name;
@@ -27,6 +44,34 @@ function controlHtml(opt: WidgetOption): string {
   const dn = escapeHtml(name);
   const id = `cfg-${dn}`;
 
+  if (opt.choices_from && loadingChoices.has(name)) {
+    return `<div class="field"><label>${label}</label><div class="cfg-empty">Loading choices…</div></div>`;
+  }
+  const choiceError = choiceErrors.get(name);
+  if (choiceError && opt.type === "select") {
+    return (
+      `<div class="field"><label for="${id}">${label}</label>` +
+      `<input type="text" id="${id}" data-name="${dn}" data-type="string" value="${escapeHtml(String(val ?? ""))}" />` +
+      `<div class="cfg-empty">${escapeHtml(choiceError)}</div></div>`
+    );
+  }
+  if (choiceError && opt.type === "multiselect") {
+    const lines = Array.isArray(val) ? val.map(String).join("\n") : String(val ?? "");
+    return (
+      `<div class="field"><label for="${id}">${label}</label>` +
+      `<textarea id="${id}" data-name="${dn}" data-type="multiselect-fallback" rows="4">${escapeHtml(lines)}</textarea>` +
+      `<div class="cfg-empty">${escapeHtml(choiceError)}</div></div>`
+    );
+  }
+  const hasCurrent = Array.isArray(val) ? val.length > 0 : val != null && String(val) !== "";
+  const emptyDynamic = Boolean(opt.choices_from && opt.choices?.length === 0);
+  if (emptyDynamic && !hasCurrent) {
+    return `<div class="field"><label>${label}</label><div class="cfg-empty">No choices found.</div></div>`;
+  }
+  const emptyHint = emptyDynamic
+    ? '<div class="cfg-empty">No choices found; keeping the current value.</div>'
+    : "";
+
   if (opt.type === "boolean") {
     return (
       `<label class="cfg-check"><span>${label}</span>` +
@@ -34,7 +79,7 @@ function controlHtml(opt: WidgetOption): string {
     );
   }
   if (opt.type === "multiselect") {
-    const boxes = (opt.choices || [])
+    const boxes = choicesWithCurrent(opt, val)
       .map((c) => {
         const on = Array.isArray(val) && (val as unknown[]).map(String).includes(c.value);
         return (
@@ -43,7 +88,7 @@ function controlHtml(opt: WidgetOption): string {
         );
       })
       .join("");
-    return `<div class="field"><label>${label}</label><div class="cfg-multiset">${boxes}</div></div>`;
+    return `<div class="field"><label>${label}</label><div class="cfg-multiset">${boxes}</div>${emptyHint}</div>`;
   }
 
   let control: string;
@@ -65,7 +110,7 @@ function controlHtml(opt: WidgetOption): string {
       control = `<textarea id="${id}" data-name="${dn}" data-type="string" rows="3">${escapeHtml(String(val ?? ""))}</textarea>`;
       break;
     case "select": {
-      const rows = (opt.choices || [])
+      const rows = choicesWithCurrent(opt, val)
         .map(
           (c) =>
             `<option value="${escapeHtml(c.value)}" ${String(val) === c.value ? "selected" : ""}>${escapeHtml(c.label || c.value)}</option>`,
@@ -80,7 +125,7 @@ function controlHtml(opt: WidgetOption): string {
       control = `<input type="text" id="${id}" data-name="${dn}" data-type="string" value="${escapeHtml(String(val ?? ""))}"${ph} />`;
     }
   }
-  return `<div class="field"><label for="${id}">${label}</label>${control}</div>`;
+  return `<div class="field"><label for="${id}">${label}</label>${control}${emptyHint}</div>`;
 }
 
 function settingsHtml(): string {
@@ -168,6 +213,11 @@ function onFormChange(e: Event) {
       `input[data-name="${CSS.escape(name)}"]:checked`,
     );
     state.options[name] = Array.from(on).map((b) => b.value);
+  } else if (type === "multiselect-fallback") {
+    state.options[name] = el.value
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
   } else {
     state.options[name] = el.value;
   }
@@ -199,6 +249,7 @@ function toggleAdmin() {
 // and again after a plugin.json save (with preserveOptions, so editing the
 // manifest refreshes the cell_option form without discarding values already set).
 export async function loadWidgetConfig(key: string, opts: { preserveOptions?: boolean } = {}) {
+  const generation = ++configGeneration;
   const prev = opts.preserveOptions ? { ...state.options } : null;
   schema = [];
   adminUrl = "";
@@ -207,12 +258,17 @@ export async function loadWidgetConfig(key: string, opts: { preserveOptions?: bo
   adminBtn.hidden = true;
   settingsSchema = [];
   settingsValues = {};
+  loadingChoices = new Set();
+  choiceErrors = new Map();
+  $<HTMLDivElement>("config-panel").innerHTML =
+    '<div class="cfg-empty">Loading configuration…</div>';
   try {
     const [optsRes, admin, settings] = await Promise.all([
       getWidgetOptions(key),
       getWidgetAdmin(key),
       getWidgetSettings(key),
     ]);
+    if (generation !== configGeneration) return;
     schema = optsRes.options || [];
     const defaults = optionDefaults(schema);
     // Keep any value the user already set for an option that still exists.
@@ -222,9 +278,38 @@ export async function loadWidgetConfig(key: string, opts: { preserveOptions?: bo
     adminBtn.hidden = !admin.has_admin;
     settingsSchema = settings.settings || [];
     settingsValues = { ...settings.current };
+    const dynamic = schema.filter((field) => field.choices_from);
+    loadingChoices = new Set(dynamic.map((field) => field.name));
+    if (dynamic.length) {
+      renderForm();
+      const materialized = await Promise.all(
+        dynamic.map(async (field) => {
+          try {
+            const result = await getWidgetChoices(key, field.name);
+            return { field, choices: result.choices, error: "" };
+          } catch (err) {
+            return {
+              field,
+              choices: null,
+              error: err instanceof Error ? err.message : String(err),
+            };
+          }
+        }),
+      );
+      // A completed request may belong to a widget that is no longer selected;
+      // commit the batch only while it still owns the form's shared state.
+      if (generation !== configGeneration) return;
+      for (const result of materialized) {
+        if (result.choices) result.field.choices = result.choices;
+        else choiceErrors.set(result.field.name, result.error);
+        loadingChoices.delete(result.field.name);
+      }
+    }
   } catch {
+    if (generation !== configGeneration) return;
     state.options = {};
   }
+  if (generation !== configGeneration) return;
   renderForm();
 }
 

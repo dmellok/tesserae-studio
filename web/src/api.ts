@@ -161,11 +161,16 @@ export interface WidgetOption {
   type: string;
   label?: string;
   default?: unknown;
-  choices?: Array<{ value: string; label?: string }>;
+  choices?: WidgetChoice[];
   choices_from?: string;
   min?: number;
   max?: number;
   step?: number;
+}
+
+export interface WidgetChoice {
+  value: string;
+  label?: string;
 }
 
 // The widget's cell_options, from its manifest, for the config form.
@@ -173,6 +178,29 @@ export const getWidgetOptions = (key: string) =>
   getJson<{ key: string; options: WidgetOption[] }>(
     `/studio/api/widgets/${encodeURIComponent(key)}/options`,
   );
+
+export const getWidgetChoices = async (key: string, option: string) => {
+  const url =
+    `/studio/api/widgets/${encodeURIComponent(key)}/choices` +
+    `?option=${encodeURIComponent(option)}`;
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    let message = `${url} -> ${resp.status} ${resp.statusText}`;
+    try {
+      const body = (await resp.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // Keep the HTTP fallback when an intermediary returns a non-JSON body.
+    }
+    throw new Error(message);
+  }
+  return (await resp.json()) as {
+    key: string;
+    option: string;
+    total: number;
+    choices: WidgetChoice[];
+  };
+};
 
 // Whether the widget/companion ships an admin page (server.py blueprint()) and
 // the URL Studio proxies it at (live only, once registered).

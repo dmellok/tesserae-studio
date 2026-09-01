@@ -5,6 +5,7 @@ import {
   getConfig,
   getHealth,
   getPluginSchema,
+  getWidgetChoices,
   getWidgetData,
   lintWidget,
   mineSchema,
@@ -80,6 +81,24 @@ describe("URL encoding of keys", () => {
   it("encodes the widget in mineSchema", async () => {
     await mineSchema("wx&co");
     expect(lastCall()[0]).toBe("/studio/api/mine/wx%26co");
+  });
+
+  it("encodes the widget and option in getWidgetChoices", async () => {
+    fetchMock.mockResolvedValueOnce(
+      ok({
+        key: "history widget",
+        option: "primary entity",
+        total: 1,
+        choices: [{ value: "sensor.room", label: "Room" }],
+      }),
+    );
+
+    const result = await getWidgetChoices("history widget", "primary entity");
+
+    expect(lastCall()[0]).toBe(
+      "/studio/api/widgets/history%20widget/choices?option=primary%20entity",
+    );
+    expect(result.choices).toEqual([{ value: "sensor.room", label: "Room" }]);
   });
 });
 
@@ -180,6 +199,19 @@ describe("error handling", () => {
   it("propagates a network rejection", async () => {
     fetchMock.mockRejectedValueOnce(new Error("offline"));
     await expect(getHealth()).rejects.toThrow("offline");
+  });
+
+  it("surfaces the Studio error when dynamic choices cannot load", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: async () => ({ error: "widget is not registered" }),
+    } as Response);
+
+    await expect(getWidgetChoices("history", "entities")).rejects.toThrow(
+      "widget is not registered",
+    );
   });
 });
 
