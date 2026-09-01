@@ -54,6 +54,18 @@ describe("dynamic choices", () => {
     expect(panel.querySelector("[data-name]")).toBeNull();
   });
 
+  it("keeps the current form in place while a manifest save reloads the schema", () => {
+    document.getElementById("config-panel")!.innerHTML =
+      '<input data-name="entity" value="sensor.room" />';
+    optionsMock.mockReturnValue(new Promise(() => {}));
+
+    void loadWidgetConfig("history", { preserveOptions: true });
+
+    const panel = document.getElementById("config-panel")!;
+    expect(panel.textContent).not.toContain("Loading configuration");
+    expect(panel.querySelector('[data-name="entity"]')).not.toBeNull();
+  });
+
   it("keeps static choices synchronous", async () => {
     optionsMock.mockResolvedValue({
       key: "clock",

@@ -130,7 +130,14 @@ class TesseraeClient:
                 raise PushError(503, "Connected Tesserae is unavailable") from exc
             page = self._json_or_push_error(resp)
             rows = page.get("choices") or []
-            total = int(page.get("total") or 0)
+            try:
+                total = int(page["total"])
+            except (KeyError, TypeError, ValueError) as exc:
+                # Without a trustworthy total the loop cannot tell a complete
+                # list from a truncated one; failing beats returning a partial.
+                raise PushError(
+                    502, "Tesserae returned a choices response without a total"
+                ) from exc
             if not rows and len(choices) < total:
                 # Advancing by the rows actually received tolerates a server
                 # that clamps our page size; no progress before ``total`` would

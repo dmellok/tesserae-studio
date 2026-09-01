@@ -75,3 +75,27 @@ async def test_widget_choices_rejects_a_page_that_makes_no_progress() -> None:
         await client.aclose()
 
     assert exc.value.status == 502
+
+
+@pytest.mark.asyncio
+async def test_widget_choices_rejects_a_page_without_a_total() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "key": "demo",
+                "option": "items",
+                "offset": 0,
+                "choices": [{"value": "one", "label": "One"}],
+            },
+        )
+
+    client = TesseraeClient("http://tess.test")
+    client.raw._transport = httpx.MockTransport(handler)
+    try:
+        with pytest.raises(PushError, match="without a total") as exc:
+            await client.widget_choices("demo", "items")
+    finally:
+        await client.aclose()
+
+    assert exc.value.status == 502

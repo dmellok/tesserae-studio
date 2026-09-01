@@ -260,8 +260,12 @@ export async function loadWidgetConfig(key: string, opts: { preserveOptions?: bo
   settingsValues = {};
   loadingChoices = new Set();
   choiceErrors = new Map();
-  $<HTMLDivElement>("config-panel").innerHTML =
-    '<div class="cfg-empty">Loading configuration…</div>';
+  // On a manifest save (preserveOptions) the same widget's form is already on
+  // screen; leaving it in place until the new schema arrives avoids a flash.
+  if (!opts.preserveOptions) {
+    $<HTMLDivElement>("config-panel").innerHTML =
+      '<div class="cfg-empty">Loading configuration…</div>';
+  }
   try {
     const [optsRes, admin, settings] = await Promise.all([
       getWidgetOptions(key),
