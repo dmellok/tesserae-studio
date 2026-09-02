@@ -305,6 +305,27 @@ def test_dynamic_widget_choices_forward_the_requested_search_page(ws_client):
     }
 
 
+def test_dynamic_widget_choices_reject_a_negative_offset(ws_client):
+    manifest = {
+        "kind": "widget",
+        "name": "Mine",
+        "cell_options": [{"name": "entity", "type": "select", "choices_from": "entity"}],
+    }
+    ws_client.put(
+        "/studio/api/files/mywidget/plugin.json",
+        json={"content": json.dumps(manifest)},
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("Tesserae must not be asked for a page at a negative offset")
+
+    ws_client.app.state.tesserae.raw._transport = httpx.MockTransport(handler)
+
+    response = ws_client.get("/studio/api/widgets/mywidget/choices?option=entity&offset=-1")
+
+    assert response.status_code == 422
+
+
 def test_dynamic_widget_choices_preserve_tesserae_error(ws_client):
     manifest = {
         "kind": "widget",

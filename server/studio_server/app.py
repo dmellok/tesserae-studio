@@ -10,7 +10,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Body, FastAPI, Request
+from fastapi import Body, FastAPI, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -291,7 +291,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"key": key, "options": opts if isinstance(opts, list) else []})
 
     @app.get("/studio/api/widgets/{key}/choices")
-    async def widget_choices(key: str, option: str, q: str = "", offset: int = 0) -> JSONResponse:
+    async def widget_choices(
+        key: str, option: str, q: str = "", offset: int = Query(0, ge=0)
+    ) -> JSONResponse:
         """One materialised choices page for a declared widget option."""
         import json
 

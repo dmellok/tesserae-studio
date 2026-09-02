@@ -239,6 +239,52 @@ describe("dynamic choices", () => {
     expect(combobox.selectionEnd).toBe("Room".length);
   });
 
+  it("walks dynamic select options with the arrow keys and commits with Enter", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockResolvedValue({
+      key: "history",
+      option: "entity",
+      total: 2,
+      offset: 0,
+      choices: [
+        { value: "sensor.room", label: "Room" },
+        { value: "sensor.outside", label: "Outside" },
+      ],
+    });
+
+    await loadWidgetConfig("history");
+    const combobox = document.querySelector<HTMLInputElement>(
+      '[data-choice-combobox="entity"]',
+    )!;
+    combobox.focus();
+    combobox.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    combobox.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+
+    const active = document.querySelector<HTMLButtonElement>(
+      '[data-choice-option="entity"].is-active',
+    )!;
+    expect(active.dataset.choiceValue).toBe("sensor.outside");
+    expect(combobox.getAttribute("aria-activedescendant")).toBe(active.id);
+
+    combobox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+    expect(state.options.entity).toBe("sensor.outside");
+    expect(
+      document.querySelector<HTMLElement>('[data-choice-popover="entity"]')!.hidden,
+    ).toBe(true);
+  });
+
   it("commits one dynamic select option and closes the dropdown", async () => {
     optionsMock.mockResolvedValue({
       key: "history",
@@ -371,6 +417,8 @@ describe("dynamic choices", () => {
     )!;
     search.value = "kitchen & hall";
     search.dispatchEvent(new Event("input", { bubbles: true }));
+    // A burst of keystrokes collapses into the one request the debounce releases.
+    expect(choicesMock).toHaveBeenCalledTimes(1);
 
     await vi.waitFor(() =>
       expect(choicesMock).toHaveBeenLastCalledWith(
@@ -660,9 +708,15 @@ describe("dynamic choices", () => {
     let search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
     search.value = "old";
     search.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() =>
+      expect(choicesMock).toHaveBeenLastCalledWith("history", "entity", "old", 0),
+    );
     search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
     search.value = "new";
     search.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() =>
+      expect(choicesMock).toHaveBeenLastCalledWith("history", "entity", "new", 0),
+    );
 
     finishNew({
       key: "history",

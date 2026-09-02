@@ -416,7 +416,8 @@ button.pill:disabled { opacity: 0.55; cursor: default; }
 }
 .dynamic-select-option span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dynamic-select-option:hover,
-.dynamic-select-option:focus-visible { outline: none; background: var(--t-surface-soft); }
+.dynamic-select-option:focus-visible,
+.dynamic-select-option.is-active { outline: none; background: var(--t-surface-soft); }
 .dynamic-select-option.is-selected { background: var(--t-accent-soft); color: var(--t-accent); }
 .dynamic-select-hint { padding: var(--t-space-2); color: var(--t-muted); font-size: var(--t-size-sm); text-align: center; }
 

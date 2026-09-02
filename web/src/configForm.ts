@@ -30,7 +30,12 @@ interface DynamicChoiceState {
   error: string;
   requestId: number;
   known: Map<string, WidgetChoice>;
+  pendingQuery: string | null;
+  searchTimer: ReturnType<typeof setTimeout> | null;
 }
+// Each search round-trips Studio to Tesserae; a short trailing debounce turns
+// a burst of keystrokes into one request without making the picker feel slow.
+const SEARCH_DEBOUNCE_MS = 150;
 let dynamicChoiceStates = new Map<string, DynamicChoiceState>();
 let configKey = "";
 let configGeneration = 0;
@@ -111,10 +116,11 @@ function dynamicSelectHtml(opt: WidgetOption, value: unknown): string {
   const open = choiceState?.mode === "browse" || choiceState?.mode === "search";
   const listId = `cfg-${name}-choices`;
   const rows = choicesWithCurrent(opt, value)
-    .map((choice) => {
+    .map((choice, index) => {
       const selected = choice.value === selectedValue;
       return (
-        `<button type="button" class="dynamic-select-option${selected ? " is-selected" : ""}" ` +
+        `<button type="button" id="${listId}-${index}" ` +
+        `class="dynamic-select-option${selected ? " is-selected" : ""}" ` +
         `data-choice-option="${name}" data-choice-value="${escapeHtml(choice.value)}" ` +
         `role="option" aria-selected="${selected}">` +
         `<span>${escapeHtml(choice.label || choice.value)}</span>` +
@@ -395,6 +401,7 @@ async function requestDynamicChoices(
 ) {
   const choiceState = dynamicChoiceStates.get(field.name);
   if (!choiceState) return;
+  cancelPendingSearch(choiceState);
   const requestId = ++choiceState.requestId;
   // Keep the user's exact text for continuous editing, but use one normalized
   // query for remote matching and for deciding whether pagination is allowed.
@@ -429,6 +436,12 @@ async function requestDynamicChoices(
   }
 }
 
+function cancelPendingSearch(choiceState: DynamicChoiceState) {
+  if (choiceState.searchTimer != null) clearTimeout(choiceState.searchTimer);
+  choiceState.searchTimer = null;
+  choiceState.pendingQuery = null;
+}
+
 function onChoiceSearch(e: Event) {
   const input = e.target as HTMLInputElement;
   const name = input.dataset.choiceSearch;
@@ -440,11 +453,24 @@ function onChoiceSearch(e: Event) {
     openDynamicSelect(name, input, "search");
   }
   const query = input.value.trim();
-  if (choiceState?.query === query) {
-    choiceState.input = input.value;
+  if (!choiceState) {
+    void requestDynamicChoices(configKey, field, input.value, 0, configGeneration);
     return;
   }
-  void requestDynamicChoices(configKey, field, input.value, 0, configGeneration);
+  choiceState.input = input.value;
+  // Compare against whichever query runs next, in flight or still waiting on
+  // the debounce, so retyping the same text or a trailing space does not
+  // queue a duplicate request.
+  if ((choiceState.pendingQuery ?? choiceState.query) === query) return;
+  cancelPendingSearch(choiceState);
+  choiceState.pendingQuery = query;
+  const generation = configGeneration;
+  choiceState.searchTimer = setTimeout(() => {
+    choiceState.searchTimer = null;
+    choiceState.pendingQuery = null;
+    if (generation !== configGeneration || dynamicChoiceStates.get(name) !== choiceState) return;
+    void requestDynamicChoices(configKey, field, choiceState.input, 0, generation);
+  }, SEARCH_DEBOUNCE_MS);
 }
 
 function closeDynamicSelects(exceptName = ""): string[] {
@@ -490,6 +516,50 @@ function onChoiceComboboxFocus(e: FocusEvent) {
   const name = input?.dataset.choiceCombobox;
   if (!name || !input || suppressDynamicSelectFocus) return;
   openDynamicSelect(name, input, "browse");
+}
+
+function dynamicSelectOptions(name: string): { options: HTMLButtonElement[]; active: number } {
+  const options = Array.from(
+    $<HTMLDivElement>("config-panel").querySelectorAll<HTMLButtonElement>(
+      `[data-choice-list="${CSS.escape(name)}"] [data-choice-option]`,
+    ),
+  );
+  return { options, active: options.findIndex((option) => option.classList.contains("is-active")) };
+}
+
+function moveActiveOption(name: string, input: HTMLInputElement, step: number) {
+  const { options, active } = dynamicSelectOptions(name);
+  if (!options.length) return;
+  // The first arrow press lands on the current selection so the list reads
+  // from where the value is; later presses walk from there and wrap.
+  const selected = options.findIndex((option) => option.classList.contains("is-selected"));
+  let next: number;
+  if (active >= 0) next = (active + step + options.length) % options.length;
+  else if (selected >= 0) next = selected;
+  else next = step > 0 ? 0 : options.length - 1;
+  options.forEach((option, index) => option.classList.toggle("is-active", index === next));
+  input.setAttribute("aria-activedescendant", options[next].id);
+  if (typeof options[next].scrollIntoView === "function") {
+    options[next].scrollIntoView({ block: "nearest" });
+  }
+}
+
+function onChoiceComboboxKeydown(e: KeyboardEvent) {
+  const input = (e.target as HTMLElement).closest<HTMLInputElement>("[data-choice-combobox]");
+  const name = input?.dataset.choiceCombobox;
+  if (!name || !input) return;
+  const choiceState = dynamicChoiceStates.get(name);
+  if (!choiceState) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (choiceState.mode === "closed") openDynamicSelect(name, input, "browse");
+    moveActiveOption(name, input, e.key === "ArrowDown" ? 1 : -1);
+  } else if (e.key === "Enter" && choiceState.mode !== "closed") {
+    const { options, active } = dynamicSelectOptions(name);
+    if (active < 0) return;
+    e.preventDefault();
+    options[active].click();
+  }
 }
 
 function focusClosedDynamicSelect(name: string) {
@@ -607,6 +677,7 @@ export async function loadWidgetConfig(key: string, opts: { preserveOptions?: bo
   adminBtn.hidden = true;
   settingsSchema = [];
   settingsValues = {};
+  for (const choiceState of dynamicChoiceStates.values()) cancelPendingSearch(choiceState);
   dynamicChoiceStates = new Map();
   // On a manifest save (preserveOptions) the same widget's form is already on
   // screen; leaving it in place until the new schema arrives avoids a flash.
@@ -647,6 +718,8 @@ export async function loadWidgetConfig(key: string, opts: { preserveOptions?: bo
         error: "",
         requestId: 0,
         known: new Map(),
+        pendingQuery: null,
+        searchTimer: null,
       });
     }
     if (dynamic.length) {
@@ -678,6 +751,7 @@ export function initConfig() {
   panel.addEventListener("input", onChoiceSearch);
   panel.addEventListener("input", onFormChange);
   panel.addEventListener("focusin", onChoiceComboboxFocus);
+  panel.addEventListener("keydown", onChoiceComboboxKeydown);
   panel.addEventListener("click", onChoiceSelectClick);
   panel.addEventListener("click", onChoiceClear);
   panel.addEventListener("scroll", onChoiceScroll, true);
