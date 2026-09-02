@@ -115,36 +115,31 @@ class TesseraeClient:
         )
         return self._json_or_push_error(resp)
 
-    async def widget_choices(self, widget_id: str, option: str) -> list[dict[str, Any]]:
-        """All materialised choices for one widget option."""
-        choices: list[dict[str, Any]] = []
-        total = 1
-        while len(choices) < total:
-            try:
-                resp = await self._client.get(
-                    f"/api/mcp/widgets/{widget_id}/choices",
-                    params={"option": option, "limit": 1000, "offset": len(choices)},
-                    headers=self._mcp_headers(),
-                )
-            except httpx.HTTPError as exc:
-                raise PushError(503, "Connected Tesserae is unavailable") from exc
-            page = self._json_or_push_error(resp)
-            rows = page.get("choices") or []
-            try:
-                total = int(page["total"])
-            except (KeyError, TypeError, ValueError) as exc:
-                # Without a trustworthy total the loop cannot tell a complete
-                # list from a truncated one; failing beats returning a partial.
-                raise PushError(
-                    502, "Tesserae returned a choices response without a total"
-                ) from exc
-            if not rows and len(choices) < total:
-                # Advancing by the rows actually received tolerates a server
-                # that clamps our page size; no progress before ``total`` would
-                # otherwise retry the same offset forever.
-                raise PushError(502, "Tesserae returned an incomplete choices response")
-            choices.extend(rows)
-        return choices
+    async def widget_choices(
+        self, widget_id: str, option: str, *, q: str = "", offset: int = 0
+    ) -> tuple[list[dict[str, Any]], int]:
+        """One bounded page of materialised choices for a widget option."""
+        try:
+            resp = await self._client.get(
+                f"/api/mcp/widgets/{widget_id}/choices",
+                # Studio owns this bound so browser callers cannot accidentally
+                # restore the full-response/full-DOM behavior this endpoint avoids.
+                params={"option": option, "q": q, "limit": 100, "offset": offset},
+                headers=self._mcp_headers(),
+            )
+        except httpx.HTTPError as exc:
+            raise PushError(503, "Connected Tesserae is unavailable") from exc
+        page = self._json_or_push_error(resp)
+        choices = page.get("choices") or []
+        try:
+            total = int(page["total"])
+        except (KeyError, TypeError, ValueError) as exc:
+            # The browser needs the source total to distinguish a complete
+            # result from a page that can be continued or narrowed by search.
+            raise PushError(502, "Tesserae returned a choices response without a total") from exc
+        if not choices and offset < total:
+            raise PushError(502, "Tesserae returned an incomplete choices response")
+        return choices, total
 
     async def set_widget_settings(self, widget_id: str, values: dict[str, Any]) -> dict[str, Any]:
         """Store a widget's settings (e.g. an API key) in Tesserae so its fetch()

@@ -254,7 +254,7 @@ def test_static_widget_choices_are_returned_without_tesserae(ws_client):
     }
 
 
-def test_dynamic_widget_choices_override_manifest_choices(ws_client):
+def test_dynamic_widget_choices_forward_the_requested_search_page(ws_client):
     manifest = {
         "kind": "widget",
         "name": "Mine",
@@ -275,26 +275,32 @@ def test_dynamic_widget_choices_override_manifest_choices(ws_client):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/mcp/widgets/mywidget/choices"
         assert request.url.params["option"] == "entity"
+        assert request.url.params["q"] == "kitchen & hall"
+        assert request.url.params["limit"] == "100"
+        assert request.url.params["offset"] == "100"
         return httpx.Response(
             200,
             json={
                 "key": "mywidget",
                 "option": "entity",
-                "total": 1,
-                "offset": 0,
+                "total": 245,
+                "offset": 100,
                 "choices": [{"value": "sensor.live", "label": "Live sensor"}],
             },
         )
 
     ws_client.app.state.tesserae.raw._transport = httpx.MockTransport(handler)
 
-    response = ws_client.get("/studio/api/widgets/mywidget/choices?option=entity")
+    response = ws_client.get(
+        "/studio/api/widgets/mywidget/choices?option=entity&q=kitchen%20%26%20hall&offset=100"
+    )
 
     assert response.status_code == 200
     assert response.json() == {
         "key": "mywidget",
         "option": "entity",
-        "total": 1,
+        "total": 245,
+        "offset": 100,
         "choices": [{"value": "sensor.live", "label": "Live sensor"}],
     }
 

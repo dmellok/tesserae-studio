@@ -100,6 +100,31 @@ describe("URL encoding of keys", () => {
     );
     expect(result.choices).toEqual([{ value: "sensor.room", label: "Room" }]);
   });
+
+  it("encodes a dynamic choices search page", async () => {
+    fetchMock.mockResolvedValueOnce(
+      ok({
+        key: "history widget",
+        option: "primary entity",
+        total: 245,
+        offset: 100,
+        choices: [{ value: "sensor.kitchen", label: "Kitchen" }],
+      }),
+    );
+
+    const result = await getWidgetChoices(
+      "history widget",
+      "primary entity",
+      "kitchen & hall",
+      100,
+    );
+
+    expect(lastCall()[0]).toBe(
+      "/studio/api/widgets/history%20widget/choices" +
+        "?option=primary%20entity&q=kitchen%20%26%20hall&offset=100",
+    );
+    expect(result).toMatchObject({ total: 245, offset: 100 });
+  });
 });
 
 describe("request shapes", () => {

@@ -179,10 +179,17 @@ export const getWidgetOptions = (key: string) =>
     `/studio/api/widgets/${encodeURIComponent(key)}/options`,
   );
 
-export const getWidgetChoices = async (key: string, option: string) => {
+export const getWidgetChoices = async (
+  key: string,
+  option: string,
+  q = "",
+  offset = 0,
+) => {
   const url =
     `/studio/api/widgets/${encodeURIComponent(key)}/choices` +
-    `?option=${encodeURIComponent(option)}`;
+    `?option=${encodeURIComponent(option)}` +
+    (q ? `&q=${encodeURIComponent(q)}` : "") +
+    (offset ? `&offset=${offset}` : "");
   const resp = await fetch(url);
   if (!resp.ok) {
     let message = `${url} -> ${resp.status} ${resp.statusText}`;
@@ -198,6 +205,7 @@ export const getWidgetChoices = async (key: string, option: string) => {
     key: string;
     option: string;
     total: number;
+    offset?: number;
     choices: WidgetChoice[];
   };
 };

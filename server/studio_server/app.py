@@ -291,8 +291,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"key": key, "options": opts if isinstance(opts, list) else []})
 
     @app.get("/studio/api/widgets/{key}/choices")
-    async def widget_choices(key: str, option: str) -> JSONResponse:
-        """Materialised choices for one declared widget option."""
+    async def widget_choices(key: str, option: str, q: str = "", offset: int = 0) -> JSONResponse:
+        """One materialised choices page for a declared widget option."""
         import json
 
         files = _widget_files(key)
@@ -315,11 +315,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         if spec.get("choices_from"):
             try:
-                choices = await app.state.tesserae.widget_choices(key, option)
+                choices, total = await app.state.tesserae.widget_choices(
+                    key, option, q=q, offset=offset
+                )
             except PushError as exc:
                 return JSONResponse({"error": exc.message}, status_code=exc.status)
             return JSONResponse(
-                {"key": key, "option": option, "total": len(choices), "choices": choices}
+                {
+                    "key": key,
+                    "option": option,
+                    "total": total,
+                    "offset": offset,
+                    "choices": choices,
+                }
             )
         choices = spec.get("choices")
         if isinstance(choices, list):
