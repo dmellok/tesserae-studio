@@ -186,8 +186,16 @@ async function toggleRegister() {
   registerBtn.disabled = true;
   try {
     const res = registered ? await unregisterWidget(w.key) : await registerWidget(w.key);
-    await refreshCatalog(w.key); // pick up fresh registered/synced flags
+    // A push may finish after the user selects another widget. Refresh that
+    // current selection instead of pulling the completed push back into view.
+    const selectedKey = state.widget?.key;
+    await refreshCatalog(selectedKey); // pick up fresh registered/synced flags
     if (state.widget) renderRegister(state.widget);
+    // Remote choice resolvers become usable only after the pushed widget is
+    // active; reload the form then without discarding values already entered.
+    if (!registered && res.method === "push" && res.active && state.widget?.key === w.key) {
+      await loadWidgetConfig(w.key, { preserveOptions: true });
+    }
     if (registered) setNote(`Unregistered ${w.key}.`, "");
     else if (res.method === "push")
       setNote(

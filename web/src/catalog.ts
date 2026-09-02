@@ -56,6 +56,7 @@ function labelFor(w: { key: string; name: string; editable?: boolean }, collides
 
 export async function refreshCatalog(keepKey?: string) {
   const widgetSel = $<HTMLSelectElement>("widget");
+  const selectionAtStart = state.widget?.key;
   const catalog = await getCatalog();
   state.widgets = catalog.widgets ?? [];
   widgetSel.innerHTML = "";
@@ -67,8 +68,14 @@ export async function refreshCatalog(keepKey?: string) {
     opt.textContent = labelFor(w, (nameCount.get(w.name) ?? 0) > 1);
     widgetSel.appendChild(opt);
   }
+  // A catalog request must not undo a newer picker action that completed while
+  // the request was in flight; the user's latest selection owns the form.
+  const selectionAfterLoad = state.widget?.key;
+  const preferredKey = selectionAfterLoad !== selectionAtStart ? selectionAfterLoad : keepKey;
   const key =
-    keepKey && state.widgets.some((w) => w.key === keepKey) ? keepKey : state.widgets[0]?.key;
+    preferredKey && state.widgets.some((w) => w.key === preferredKey)
+      ? preferredKey
+      : state.widgets[0]?.key;
   if (key) {
     state.widget = state.widgets.find((w) => w.key === key);
     widgetSel.value = key;

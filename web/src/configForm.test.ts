@@ -66,6 +66,47 @@ describe("dynamic choices", () => {
     expect(panel.querySelector('[data-name="entity"]')).not.toBeNull();
   });
 
+  it("keeps edits made while a preserved schema reload is pending", async () => {
+    state.options = { label: "before" };
+    document.getElementById("config-panel")!.innerHTML =
+      '<input data-name="label" data-type="string" value="before" />';
+    let finishOptions!: (value: Awaited<ReturnType<typeof getWidgetOptions>>) => void;
+    optionsMock.mockReturnValue(
+      new Promise((resolve) => {
+        finishOptions = resolve;
+      }),
+    );
+
+    const loading = loadWidgetConfig("history", { preserveOptions: true });
+    const input = document.querySelector<HTMLInputElement>('[data-name="label"]')!;
+    input.value = "during";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    finishOptions({
+      key: "history",
+      options: [{ name: "label", type: "string", default: "default" }],
+    });
+    await loading;
+
+    expect(state.options.label).toBe("during");
+    expect(document.querySelector<HTMLInputElement>('[data-name="label"]')?.value).toBe(
+      "during",
+    );
+  });
+
+  it("keeps the current form and values when a preserved schema reload fails", async () => {
+    state.options = { entity: "sensor.room" };
+    document.getElementById("config-panel")!.innerHTML =
+      '<input data-name="entity" data-type="string" value="sensor.room" />';
+    optionsMock.mockRejectedValue(new Error("metadata unavailable"));
+
+    await loadWidgetConfig("history", { preserveOptions: true });
+
+    expect(state.options).toEqual({ entity: "sensor.room" });
+    expect(document.querySelector<HTMLInputElement>('[data-name="entity"]')?.value).toBe(
+      "sensor.room",
+    );
+  });
+
   it("keeps static choices synchronous", async () => {
     optionsMock.mockResolvedValue({
       key: "clock",
