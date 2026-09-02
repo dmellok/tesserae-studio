@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { selectWidget } from "./catalog";
+import { getCatalog } from "./api";
+import { refreshCatalog, selectWidget } from "./catalog";
 import { loadWidgetConfig } from "./configForm";
 import { render } from "./preview";
 import { state } from "./state";
@@ -20,6 +21,7 @@ vi.mock("./workspace", () => ({ loadEditor: vi.fn() }));
 const configMock = vi.mocked(loadWidgetConfig);
 const editorMock = vi.mocked(loadEditor);
 const renderMock = vi.mocked(render);
+const catalogMock = vi.mocked(getCatalog);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -77,4 +79,29 @@ it("does not revive the first selection after selecting the same widget again", 
 
   expect(editorMock).not.toHaveBeenCalled();
   expect(renderMock).not.toHaveBeenCalled();
+});
+
+it("preserves a widget selected while the catalog refresh is pending", async () => {
+  state.widget = state.widgets[0];
+  configMock.mockResolvedValue(undefined);
+  let finishCatalog!: (value: Awaited<ReturnType<typeof getCatalog>>) => void;
+  catalogMock.mockReturnValue(
+    new Promise((resolve) => {
+      finishCatalog = resolve;
+    }),
+  );
+
+  const refreshing = refreshCatalog("a");
+  await selectWidget("b");
+  finishCatalog({
+    widgets: [
+      { key: "a", name: "A", icon: "", desc: "", fragments: [] },
+      { key: "b", name: "B", icon: "", desc: "", fragments: [] },
+    ],
+    appearance: {},
+  });
+  await refreshing;
+
+  expect(state.widget?.key).toBe("b");
+  expect(document.querySelector<HTMLSelectElement>("#widget")?.value).toBe("b");
 });

@@ -664,24 +664,23 @@ function toggleAdmin() {
 }
 
 // Load a widget's config schema + admin availability. Called on widget select,
-// and again after a plugin.json save (with preserveOptions, so editing the
-// manifest refreshes the cell_option form without discarding values already set).
+// and again after a plugin.json save or active push (with preserveOptions, so
+// refreshing the cell_option form does not discard values already set).
 export async function loadWidgetConfig(key: string, opts: { preserveOptions?: boolean } = {}) {
   const generation = ++configGeneration;
   configKey = key;
-  const prev = opts.preserveOptions ? { ...state.options } : null;
-  schema = [];
-  adminUrl = "";
-  hideAdmin();
   const adminBtn = $<HTMLButtonElement>("admin-btn");
-  adminBtn.hidden = true;
-  settingsSchema = [];
-  settingsValues = {};
   for (const choiceState of dynamicChoiceStates.values()) cancelPendingSearch(choiceState);
-  dynamicChoiceStates = new Map();
   // On a manifest save (preserveOptions) the same widget's form is already on
   // screen; leaving it in place until the new schema arrives avoids a flash.
   if (!opts.preserveOptions) {
+    schema = [];
+    adminUrl = "";
+    hideAdmin();
+    adminBtn.hidden = true;
+    settingsSchema = [];
+    settingsValues = {};
+    dynamicChoiceStates = new Map();
     $<HTMLDivElement>("config-panel").innerHTML =
       '<div class="cfg-empty">Loading configuration…</div>';
   }
@@ -692,15 +691,18 @@ export async function loadWidgetConfig(key: string, opts: { preserveOptions?: bo
       getWidgetSettings(key),
     ]);
     if (generation !== configGeneration) return;
+    const prev = opts.preserveOptions ? { ...state.options } : null;
     schema = optsRes.options || [];
     const defaults = optionDefaults(schema);
     // Keep any value the user already set for an option that still exists.
     if (prev) for (const f of schema) if (f.name in prev) defaults[f.name] = prev[f.name];
     state.options = defaults;
+    hideAdmin();
     adminUrl = admin.url;
     adminBtn.hidden = !admin.has_admin;
     settingsSchema = settings.settings || [];
     settingsValues = { ...settings.current };
+    dynamicChoiceStates = new Map();
     const dynamic = schema.filter(
       (field) => field.choices_from && (field.type === "select" || field.type === "multiselect"),
     );
@@ -734,6 +736,7 @@ export async function loadWidgetConfig(key: string, opts: { preserveOptions?: bo
     }
   } catch {
     if (generation !== configGeneration) return;
+    if (opts.preserveOptions) return;
     state.options = {};
   }
   if (generation !== configGeneration) return;
