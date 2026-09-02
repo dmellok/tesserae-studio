@@ -91,7 +91,19 @@ describe("dynamic choices", () => {
     );
   });
 
-  it("shows loading and then fills the existing select", async () => {
+  it("does not fetch choices for a non-picker option type", async () => {
+    optionsMock.mockResolvedValue({
+      key: "clock",
+      options: [{ name: "label", type: "string", choices_from: "unsupported" }],
+    });
+
+    await loadWidgetConfig("clock");
+
+    expect(choicesMock).not.toHaveBeenCalled();
+    expect(document.querySelector<HTMLInputElement>('input[data-name="label"]')).not.toBeNull();
+  });
+
+  it("renders a searchable dynamic select from the first page", async () => {
     optionsMock.mockResolvedValue({
       key: "history",
       options: [
@@ -121,6 +133,7 @@ describe("dynamic choices", () => {
       key: "history",
       option: "entity",
       total: 2,
+      offset: 0,
       choices: [
         { value: "sensor.room", label: "Room" },
         { value: "sensor.outside", label: "Outside" },
@@ -128,14 +141,553 @@ describe("dynamic choices", () => {
     });
     await loading;
 
-    const select = document.querySelector<HTMLSelectElement>(
-      '#config-panel select[data-name="entity"]',
+    expect(choicesMock).toHaveBeenCalledWith("history", "entity", "", 0);
+    expect(
+      document.querySelector<HTMLInputElement>(
+        '#config-panel input[data-choice-combobox="entity"]',
+      ),
+    ).not.toBeNull();
+    const choices = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        '#config-panel [data-choice-list="entity"] [data-choice-option="entity"]',
+      ),
     );
-    expect(Array.from(select?.options || []).map((option) => option.value)).toEqual([
+    expect(choices.map((choice) => choice.dataset.choiceValue)).toEqual([
       "sensor.room",
       "sensor.outside",
     ]);
-    expect(select?.value).toBe("sensor.room");
+    expect(
+      choices.find((choice) => choice.getAttribute("aria-selected") === "true")?.dataset
+        .choiceValue,
+    ).toBe("sensor.room");
+  });
+
+  it("renders a dynamic select as one closed editable combobox", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockResolvedValue({
+      key: "history",
+      option: "entity",
+      total: 2,
+      offset: 0,
+      choices: [
+        { value: "sensor.room", label: "Room" },
+        { value: "sensor.outside", label: "Outside" },
+      ],
+    });
+
+    await loadWidgetConfig("history");
+
+    const combobox = document.querySelector<HTMLInputElement>(
+      '[data-choice-combobox="entity"]',
+    );
+    const popover = document.querySelector<HTMLElement>('[data-choice-popover="entity"]');
+    expect(combobox).not.toBeNull();
+    expect(popover).not.toBeNull();
+    expect(combobox!.value).toBe("Room");
+    expect(combobox!.getAttribute("role")).toBe("combobox");
+    expect(combobox!.getAttribute("aria-expanded")).toBe("false");
+    expect(popover!.hidden).toBe(true);
+    expect(popover!.querySelector("input")).toBeNull();
+    expect(
+      document.querySelector('[data-choice-field="entity"] input[type="radio"]'),
+    ).toBeNull();
+  });
+
+  it("opens a dynamic select dropdown and focuses its search", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockResolvedValue({
+      key: "history",
+      option: "entity",
+      total: 1,
+      offset: 0,
+      choices: [{ value: "sensor.room", label: "Room" }],
+    });
+
+    await loadWidgetConfig("history");
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+
+    const combobox = document.querySelector<HTMLInputElement>(
+      '[data-choice-combobox="entity"]',
+    )!;
+    const popover = document.querySelector<HTMLElement>('[data-choice-popover="entity"]')!;
+    expect(combobox.getAttribute("aria-expanded")).toBe("true");
+    expect(popover.hidden).toBe(false);
+    expect(document.activeElement).toBe(combobox);
+    expect(combobox.selectionStart).toBe(0);
+    expect(combobox.selectionEnd).toBe("Room".length);
+  });
+
+  it("commits one dynamic select option and closes the dropdown", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockResolvedValue({
+      key: "history",
+      option: "entity",
+      total: 2,
+      offset: 0,
+      choices: [
+        { value: "sensor.room", label: "Room" },
+        { value: "sensor.outside", label: "Outside" },
+      ],
+    });
+
+    await loadWidgetConfig("history");
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-choice-option="entity"][data-choice-value="sensor.outside"]',
+      )!
+      .click();
+
+    const combobox = document.querySelector<HTMLInputElement>(
+      '[data-choice-combobox="entity"]',
+    )!;
+    expect(state.options.entity).toBe("sensor.outside");
+    expect(combobox.value).toBe("Outside");
+    expect(combobox.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector<HTMLElement>('[data-choice-popover="entity"]')!.hidden).toBe(
+      true,
+    );
+    expect(document.activeElement).toBe(combobox);
+    expect(renderMock).toHaveBeenCalledOnce();
+  });
+
+  it("dismisses an open dynamic select from outside or with Escape", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockResolvedValue({
+      key: "history",
+      option: "entity",
+      total: 1,
+      offset: 0,
+      choices: [{ value: "sensor.room", label: "Room" }],
+    });
+
+    await loadWidgetConfig("history");
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+    document.body.click();
+
+    expect(
+      document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.getAttribute(
+        "aria-expanded",
+      ),
+    ).toBe("false");
+    expect(document.activeElement).not.toBe(
+      document.querySelector<HTMLInputElement>('[data-choice-search="entity"]'),
+    );
+
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    const combobox = document.querySelector<HTMLInputElement>(
+      '[data-choice-combobox="entity"]',
+    )!;
+    expect(combobox.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(combobox);
+    expect(combobox.value).toBe("Room");
+    expect(combobox.selectionStart).toBe(0);
+    expect(combobox.selectionEnd).toBe("Room".length);
+  });
+
+  it("searches a dynamic select while retaining its current value", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockImplementation(async (_key, _option, q) =>
+      q
+        ? {
+            key: "history",
+            option: "entity",
+            total: 245,
+            offset: 0,
+            choices: [{ value: "sensor.kitchen", label: "Kitchen" }],
+          }
+        : {
+            key: "history",
+            option: "entity",
+            total: 2,
+            offset: 0,
+            choices: [
+              { value: "sensor.room", label: "Room" },
+              { value: "sensor.outside", label: "Outside" },
+            ],
+          },
+    );
+
+    await loadWidgetConfig("history");
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+    const search = document.querySelector<HTMLInputElement>(
+      'input[data-choice-combobox="entity"]',
+    )!;
+    search.value = "kitchen & hall";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+
+    await vi.waitFor(() =>
+      expect(choicesMock).toHaveBeenLastCalledWith(
+        "history",
+        "entity",
+        "kitchen & hall",
+        0,
+      ),
+    );
+    await vi.waitFor(() => {
+      const values = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          '[data-choice-list="entity"] [data-choice-option="entity"]',
+        ),
+      ).map((choice) => choice.dataset.choiceValue);
+      expect(values).toEqual(["sensor.room", "sensor.kitchen"]);
+    });
+    expect(state.options.entity).toBe("sensor.room");
+    expect(document.getElementById("config-panel")?.textContent).toContain("245 matches");
+    expect(document.getElementById("config-panel")?.textContent).toContain(
+      "Refine your search",
+    );
+
+    const callCount = choicesMock.mock.calls.length;
+    const list = document.querySelector<HTMLElement>('[data-choice-list="entity"]')!;
+    Object.defineProperties(list, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 300 },
+    });
+    list.scrollTop = 200;
+    list.dispatchEvent(new Event("scroll"));
+    expect(choicesMock).toHaveBeenCalledTimes(callCount);
+  });
+
+  it("restores and selects the current label when reopening after a search", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockImplementation(async (_key, _option, q) => ({
+      key: "history",
+      option: "entity",
+      total: q ? 1 : 2,
+      offset: 0,
+      choices: q
+        ? [{ value: "sensor.kitchen", label: "Kitchen" }]
+        : [
+            { value: "sensor.room", label: "Room" },
+            { value: "sensor.outside", label: "Outside" },
+          ],
+    }));
+
+    await loadWidgetConfig("history");
+    let combobox = document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!;
+    combobox.focus();
+    combobox.value = "kit";
+    combobox.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() =>
+      expect(choicesMock).toHaveBeenLastCalledWith("history", "entity", "kit", 0),
+    );
+
+    document.body.click();
+    combobox = document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!;
+    expect(combobox.value).toBe("Room");
+    const callsBeforeReopen = choicesMock.mock.calls.length;
+
+    combobox.focus();
+    await vi.waitFor(() => expect(choicesMock).toHaveBeenCalledTimes(callsBeforeReopen + 1));
+    expect(choicesMock).toHaveBeenLastCalledWith("history", "entity", "", 0);
+    await vi.waitFor(() => {
+      combobox = document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!;
+      expect(document.activeElement).toBe(combobox);
+      expect(combobox.value).toBe("Room");
+      expect(combobox.selectionStart).toBe(0);
+      expect(combobox.selectionEnd).toBe("Room".length);
+    });
+  });
+
+  it("preserves spaces and focus while editing after a search with no matches", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [{ name: "entity", type: "select", choices_from: "entity" }],
+    });
+    choicesMock.mockImplementation(async (_key, _option, q) => ({
+      key: "history",
+      option: "entity",
+      total: !q || q === "kitchen hall" ? 1 : 0,
+      offset: 0,
+      choices: !q
+        ? [{ value: "sensor.initial", label: "Initial" }]
+        : q === "kitchen hall"
+          ? [{ value: "sensor.kitchen", label: "Kitchen" }]
+          : [],
+    }));
+
+    await loadWidgetConfig("history");
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+    let search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
+    search.focus();
+    search.value = "kitchen";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() =>
+      expect(document.getElementById("config-panel")?.textContent).toContain("No matches"),
+    );
+
+    search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
+    expect(document.activeElement).toBe(search);
+    const callsBeforeSpace = choicesMock.mock.calls.length;
+    search.value = "kitchen ";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(
+      document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')?.value,
+    ).toBe("kitchen ");
+    expect(choicesMock).toHaveBeenCalledTimes(callsBeforeSpace);
+
+    search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
+    search.value += "hall";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() =>
+      expect(choicesMock).toHaveBeenLastCalledWith(
+        "history",
+        "entity",
+        "kitchen hall",
+        0,
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-choice-value="sensor.kitchen"]')).not.toBeNull(),
+    );
+    search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
+    expect(search.value).toBe("kitchen hall");
+    expect(document.activeElement).toBe(search);
+  });
+
+  it("loads the next unfiltered page when the picker reaches the end", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [{ name: "entity", type: "select", choices_from: "entity" }],
+    });
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      value: `sensor.${index}`,
+      label: `Sensor ${index}`,
+    }));
+    choicesMock.mockImplementation(async (_key, _option, q, offset) => {
+      expect(q).toBe("");
+      return offset === 0
+        ? {
+            key: "history",
+            option: "entity",
+            total: 101,
+            offset: 0,
+            choices: firstPage,
+          }
+        : {
+            key: "history",
+            option: "entity",
+            total: 101,
+            offset: 100,
+            choices: [{ value: "sensor.100", label: "Sensor 100" }],
+          };
+    });
+
+    await loadWidgetConfig("history");
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+    const list = document.querySelector<HTMLElement>('[data-choice-list="entity"]')!;
+    Object.defineProperties(list, {
+      clientHeight: { configurable: true, value: 100 },
+      scrollHeight: { configurable: true, value: 300 },
+    });
+    list.scrollTop = 200;
+    list.dispatchEvent(new Event("scroll"));
+
+    await vi.waitFor(() =>
+      expect(choicesMock).toHaveBeenLastCalledWith("history", "entity", "", 100),
+    );
+    await vi.waitFor(() => {
+      const values = Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          '[data-choice-list="entity"] [data-choice-option="entity"]',
+        ),
+      ).map((choice) => choice.dataset.choiceValue);
+      expect(values).toHaveLength(101);
+      expect(values.at(-1)).toBe("sensor.100");
+    });
+  });
+
+  it("keeps multiselect values available while searching", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entities",
+          type: "multiselect",
+          choices_from: "entity",
+          default: [],
+        },
+      ],
+    });
+    choicesMock.mockImplementation(async (_key, _option, q) => ({
+      key: "history",
+      option: "entities",
+      total: 2,
+      offset: 0,
+      choices: q
+        ? [
+            { value: "sensor.outside", label: "Outside" },
+            { value: "sensor.room", label: "Room" },
+          ]
+        : [
+            { value: "sensor.room", label: "Room" },
+            { value: "sensor.outside", label: "Outside" },
+          ],
+    }));
+
+    await loadWidgetConfig("history");
+    const room = document.querySelector<HTMLInputElement>(
+      'input[type="checkbox"][data-name="entities"][value="sensor.room"]',
+    )!;
+    room.checked = true;
+    room.dispatchEvent(new Event("input", { bubbles: true }));
+
+    const search = document.querySelector<HTMLInputElement>(
+      'input[type="search"][data-choice-search="entities"]',
+    )!;
+    search.value = "sensor";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+
+    await vi.waitFor(() =>
+      expect(choicesMock).toHaveBeenLastCalledWith("history", "entities", "sensor", 0),
+    );
+    await vi.waitFor(() => {
+      const values = Array.from(
+        document.querySelectorAll<HTMLInputElement>(
+          '[data-choice-list="entities"] input[data-name="entities"]',
+        ),
+      );
+      expect(values.map((choice) => choice.value)).toEqual([
+        "sensor.room",
+        "sensor.outside",
+      ]);
+      expect(values[0].checked).toBe(true);
+      expect(values[0].closest("label")?.textContent).toContain("Room");
+    });
+    expect(state.options.entities).toEqual(["sensor.room"]);
+
+    const selected = document.querySelector<HTMLInputElement>(
+      'input[type="checkbox"][data-name="entities"][value="sensor.room"]',
+    )!;
+    selected.checked = false;
+    selected.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(state.options.entities).toEqual([]);
+  });
+
+  it("ignores an older search response for the same field", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [{ name: "entity", type: "select", choices_from: "entity" }],
+    });
+    let finishOld!: (value: Awaited<ReturnType<typeof getWidgetChoices>>) => void;
+    let finishNew!: (value: Awaited<ReturnType<typeof getWidgetChoices>>) => void;
+    choicesMock.mockImplementation((_key, _option, q) => {
+      if (!q) {
+        return Promise.resolve({
+          key: "history",
+          option: "entity",
+          total: 1,
+          offset: 0,
+          choices: [{ value: "sensor.initial", label: "Initial" }],
+        });
+      }
+      return new Promise((resolve) => {
+        if (q === "old") finishOld = resolve;
+        else finishNew = resolve;
+      });
+    });
+
+    await loadWidgetConfig("history");
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')!.focus();
+    let search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
+    search.value = "old";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    search = document.querySelector<HTMLInputElement>('[data-choice-search="entity"]')!;
+    search.value = "new";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+
+    finishNew({
+      key: "history",
+      option: "entity",
+      total: 1,
+      offset: 0,
+      choices: [{ value: "sensor.new", label: "New" }],
+    });
+    await vi.waitFor(() =>
+      expect(
+        document.querySelector<HTMLButtonElement>('[data-choice-value="sensor.new"]'),
+      ).not.toBeNull(),
+    );
+    finishOld({
+      key: "history",
+      option: "entity",
+      total: 1,
+      offset: 0,
+      choices: [{ value: "sensor.old", label: "Old" }],
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(document.querySelector('[data-choice-value="sensor.old"]')).toBeNull();
+    expect(document.querySelector('[data-choice-value="sensor.new"]')).not.toBeNull();
   });
 
   it("uses the existing scalar and array preview update path", async () => {
@@ -159,9 +711,11 @@ describe("dynamic choices", () => {
     await loadWidgetConfig("history");
     renderMock.mockClear();
 
-    const select = document.querySelector<HTMLSelectElement>('[data-name="entity"]')!;
-    select.value = "sensor.outside";
-    select.dispatchEvent(new Event("input", { bubbles: true }));
+    document
+      .querySelector<HTMLButtonElement>(
+        '[data-choice-option="entity"][data-choice-value="sensor.outside"]',
+      )!
+      .click();
 
     const checkbox = document.querySelector<HTMLInputElement>(
       'input[type="checkbox"][data-name="entities"][value="sensor.room"]',
@@ -200,6 +754,52 @@ describe("dynamic choices", () => {
     );
   });
 
+  it("keeps the combobox and selected scalar when a later search fails", async () => {
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+          default: "sensor.room",
+        },
+      ],
+    });
+    choicesMock.mockImplementation(async (_key, _option, query) => {
+      if (query === "broken") throw new Error("search failed");
+      return {
+        key: "history",
+        option: "entity",
+        total: 1,
+        choices: [{ value: "sensor.room", label: "Room" }],
+      };
+    });
+
+    await loadWidgetConfig("history");
+
+    const initial = document.querySelector<HTMLInputElement>(
+      '[data-choice-combobox="entity"]',
+    )!;
+    initial.focus();
+    initial.value = "broken";
+    initial.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() =>
+      expect(document.getElementById("config-panel")?.textContent).toContain("search failed"),
+    );
+
+    const combobox = document.querySelector<HTMLInputElement>(
+      '[data-choice-combobox="entity"]',
+    );
+    expect(combobox?.value).toBe("broken");
+    expect(document.activeElement).toBe(combobox);
+    expect(
+      document.querySelector<HTMLInputElement>('input[data-name="entity"]'),
+    ).toBeNull();
+    expect(state.options.entity).toBe("sensor.room");
+  });
+
   it("keeps another dynamic field usable when its sibling fails", async () => {
     optionsMock.mockResolvedValue({
       key: "compare",
@@ -220,13 +820,62 @@ describe("dynamic choices", () => {
 
     await loadWidgetConfig("compare");
 
-    expect(document.querySelector<HTMLSelectElement>('[data-name="primary"]')?.value).toBe(
-      "sensor.primary",
-    );
+    expect(document.querySelector('[data-choice-value="sensor.primary"]')).not.toBeNull();
     expect(
       document.querySelector<HTMLInputElement>('input[type="text"][data-name="secondary"]'),
     ).not.toBeNull();
     expect(document.getElementById("config-panel")?.textContent).toContain("secondary failed");
+  });
+
+  it("keeps an open dynamic field focused while a sibling finishes loading", async () => {
+    optionsMock.mockResolvedValue({
+      key: "compare",
+      options: [
+        { name: "primary", type: "select", choices_from: "entity" },
+        { name: "secondary", type: "select", choices_from: "entity" },
+      ],
+    });
+    let finishPrimary!: (value: Awaited<ReturnType<typeof getWidgetChoices>>) => void;
+    let finishSecondary!: (value: Awaited<ReturnType<typeof getWidgetChoices>>) => void;
+    choicesMock.mockImplementation(
+      (_key, option) =>
+        new Promise((resolve) => {
+          if (option === "primary") finishPrimary = resolve;
+          else finishSecondary = resolve;
+        }),
+    );
+
+    const loading = loadWidgetConfig("compare");
+    await vi.waitFor(() => expect(choicesMock).toHaveBeenCalledTimes(2));
+    finishPrimary({
+      key: "compare",
+      option: "primary",
+      total: 1,
+      choices: [{ value: "sensor.primary", label: "Primary" }],
+    });
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-choice-combobox="primary"]')).not.toBeNull(),
+    );
+    document.querySelector<HTMLInputElement>('[data-choice-combobox="primary"]')!.focus();
+    const focusedSearch = document.querySelector<HTMLInputElement>(
+      '[data-choice-search="primary"]',
+    )!;
+    expect(document.activeElement).toBe(focusedSearch);
+
+    finishSecondary({
+      key: "compare",
+      option: "secondary",
+      total: 1,
+      choices: [{ value: "sensor.secondary", label: "Secondary" }],
+    });
+    await loading;
+
+    expect(document.activeElement).toBe(
+      document.querySelector<HTMLInputElement>('[data-choice-search="primary"]'),
+    );
+    expect(
+      document.querySelector('[data-choice-combobox="primary"]')?.getAttribute("aria-expanded"),
+    ).toBe("true");
   });
 
   it("keeps the multiselect fallback as an array", async () => {
@@ -312,9 +961,9 @@ describe("dynamic choices", () => {
     });
     await secondLoad;
 
-    expect(document.querySelector<HTMLSelectElement>('[data-name="entity"]')?.value).toBe(
-      "second.saved",
-    );
+    expect(
+      document.querySelector('[data-choice-value="second.saved"][aria-selected="true"]'),
+    ).not.toBeNull();
   });
 
   it("keeps a saved select value that is absent from the loaded choices", async () => {
@@ -340,12 +989,54 @@ describe("dynamic choices", () => {
 
     await loadWidgetConfig("history", { preserveOptions: true });
 
-    const select = document.querySelector<HTMLSelectElement>('[data-name="entity"]')!;
-    expect(Array.from(select.options).map((option) => option.value)).toEqual([
+    const choices = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        '[data-choice-list="entity"] [data-choice-option="entity"]',
+      ),
+    );
+    expect(choices.map((choice) => choice.dataset.choiceValue)).toEqual([
       "sensor.saved",
       "sensor.other",
     ]);
-    expect(select.value).toBe("sensor.saved");
+    expect(
+      choices.find((choice) => choice.getAttribute("aria-selected") === "true")?.dataset
+        .choiceValue,
+    ).toBe("sensor.saved");
+  });
+
+  it("can clear a saved select value that is absent from the loaded choices", async () => {
+    state.options = { entity: "sensor.saved" };
+    optionsMock.mockResolvedValue({
+      key: "history",
+      options: [
+        {
+          name: "entity",
+          label: "Entity",
+          type: "select",
+          choices_from: "entity",
+        },
+      ],
+    });
+    choicesMock.mockResolvedValue({
+      key: "history",
+      option: "entity",
+      total: 1,
+      choices: [{ value: "sensor.other", label: "Other" }],
+    });
+
+    await loadWidgetConfig("history", { preserveOptions: true });
+    renderMock.mockClear();
+    document
+      .querySelector<HTMLButtonElement>('[data-choice-clear="entity"]')!
+      .click();
+
+    expect(state.options.entity).toBe("");
+    expect(document.querySelector('[data-choice-value="sensor.saved"]')).toBeNull();
+    expect(document.querySelector('[data-choice-value=""]')).toBeNull();
+    expect(document.activeElement).toBe(
+      document.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]'),
+    );
+    expect(renderMock).toHaveBeenCalledOnce();
   });
 
   it("keeps saved multiselect values visible when choices no longer contain them", async () => {
@@ -405,6 +1096,7 @@ describe("dynamic choices", () => {
     const panel = document.getElementById("config-panel")!;
     expect(panel.textContent).toContain("No choices found");
     expect(panel.querySelector('select[data-name="entity"]')).toBeNull();
+    expect(panel.querySelector('[data-choice-combobox="entity"]')).toBeNull();
   });
 
   it("reports an empty dynamic source while preserving a saved value", async () => {
@@ -430,7 +1122,8 @@ describe("dynamic choices", () => {
     await loadWidgetConfig("history", { preserveOptions: true });
 
     const panel = document.getElementById("config-panel")!;
-    expect(panel.querySelector<HTMLSelectElement>('[data-name="entity"]')?.value).toBe(
+    expect(panel.querySelector('[data-choice-value="sensor.saved"][aria-selected="true"]')).not.toBeNull();
+    expect(panel.querySelector<HTMLInputElement>('[data-choice-combobox="entity"]')?.value).toBe(
       "sensor.saved",
     );
     expect(panel.textContent).toContain("No choices found; keeping the current value");

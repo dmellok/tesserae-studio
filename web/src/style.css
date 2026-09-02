@@ -382,6 +382,44 @@ button.pill:disabled { opacity: 0.55; cursor: default; }
 .cfg-multi { display: flex; align-items: center; gap: var(--t-space-1); font-size: var(--t-size-sm); }
 .cfg-multi input { accent-color: var(--t-accent); }
 
+.dynamic-select { position: relative; }
+.dynamic-select-control { display: flex; align-items: center; gap: var(--t-space-2); }
+.dynamic-select-input-wrap {
+  position: relative; min-width: 0; flex: 1 1 auto;
+  display: flex; align-items: center;
+  border: 1px solid var(--t-border); border-radius: var(--t-radius-sm);
+  background: var(--t-surface);
+}
+.dynamic-select-input {
+  min-width: 0; width: 100%; padding: var(--t-space-2) calc(var(--t-space-3) * 2 + 1em) var(--t-space-2) var(--t-space-3);
+  border: 0; background: transparent; color: var(--t-fg); font: inherit;
+}
+.dynamic-select-input:focus { outline: none; }
+.dynamic-select-input-wrap:hover { border-color: var(--t-border-strong); }
+.dynamic-select-input-wrap:focus-within,
+.dynamic-select.is-open .dynamic-select-input-wrap { border-color: var(--t-accent); box-shadow: var(--t-ring); }
+.dynamic-select-caret { position: absolute; right: var(--t-space-3); color: var(--t-muted); pointer-events: none; }
+.dynamic-select.is-open .dynamic-select-caret { transform: rotate(180deg); }
+.dynamic-select-clear { width: 34px; height: 34px; }
+.dynamic-select-popover {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 80;
+  display: grid; gap: var(--t-space-2); padding: var(--t-space-2);
+  border: 1px solid var(--t-border); border-radius: var(--t-radius-md);
+  background: var(--t-surface); box-shadow: var(--t-shadow-lg);
+}
+.dynamic-select-list { max-height: 220px; overflow-y: auto; }
+.dynamic-select-option {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--t-space-2);
+  padding: var(--t-space-2) var(--t-space-3); border: 0; border-radius: var(--t-radius-sm);
+  background: transparent; color: var(--t-fg); font: inherit; font-size: var(--t-size-sm); text-align: left;
+  cursor: pointer;
+}
+.dynamic-select-option span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dynamic-select-option:hover,
+.dynamic-select-option:focus-visible { outline: none; background: var(--t-surface-soft); }
+.dynamic-select-option.is-selected { background: var(--t-accent-soft); color: var(--t-accent); }
+.dynamic-select-hint { padding: var(--t-space-2); color: var(--t-muted); font-size: var(--t-size-sm); text-align: center; }
+
 .admin-frame {
   width: 100%; height: 70vh; margin-top: var(--t-space-2);
   border: 1px solid var(--t-border); border-radius: var(--t-radius-md);
