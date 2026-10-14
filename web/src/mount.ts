@@ -37,8 +37,13 @@ const DEFAULT_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 // The exact ctx shape Tesserae's buildCtx produces (composer.js). Kept
 // byte-compatible so widgets that branch on ctx.cell.fragment / ctx.cell.size
 // behave identically.
+//
+// The preview resolves no locale strings, so ctx.t() always returns the
+// widget's own fallback text, which is what Tesserae does for a widget that
+// declares no locales.
 function buildCtx(spec: MountSpec) {
   const fragment = spec.fragment || "full";
+  const strings: Record<string, string> = {};
   return {
     cell: {
       w: spec.w,
@@ -53,6 +58,9 @@ function buildCtx(spec: MountSpec) {
     font: { family: spec.fontFamily || DEFAULT_FONT, weight: 400 },
     data: spec.data,
     fragment,
+    locale: "en",
+    strings,
+    t: (key: string, fallback?: string) => strings[key] ?? fallback ?? key,
     preview: true,
   };
 }
