@@ -281,7 +281,10 @@ def _r_phosphor_weight(files, manifest):
 
 def _r_no_ad_hoc_border(files, manifest):
     js = sanitize_js(files.get("client.js", ""))
-    for line, m in _lines(r"\bborder(-(top|bottom|left|right))?\s*:\s*([^;{}]+)", js):
+    # The value must start with a non-space, non-brace character: otherwise the
+    # regex backtracks over the space in `border: { display: false }` (a Chart.js
+    # option object, not CSS) and reports it.
+    for line, m in _lines(r"\bborder(-(top|bottom|left|right))?\s*:\s*([^;{}\s][^;{}]*)", js):
         if "none" in m.group(3).lower():
             continue
         yield Finding(

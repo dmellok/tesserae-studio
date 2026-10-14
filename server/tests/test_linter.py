@@ -124,6 +124,12 @@ def test_no_ad_hoc_border():
     assert "no-ad-hoc-border" in ids(files, CLEAN_MANIFEST)
 
 
+def test_no_ad_hoc_border_ignores_object_literal_option():
+    # Chart.js axis option `border: { display: false }`, not a CSS border.
+    files = {**CLEAN_FILES, "client.js": CLEAN_JS + "\nx = { y: { border: { display: false } } };"}
+    assert "no-ad-hoc-border" not in ids(files, CLEAN_MANIFEST)
+
+
 def test_no_raise_in_server():
     files = {**CLEAN_FILES, "server.py": "def fetch(o, s, *, ctx):\n    raise ValueError('x')\n"}
     assert "no-raise" in ids(files, CLEAN_MANIFEST)
