@@ -37,8 +37,14 @@ function renderFaithful(dims: { w: number; h: number }) {
   const img = document.createElement("img");
   img.className = "cell faithful-img";
   img.alt = `${state.widget!.key} faithful render`;
-  // ?t= busts the browser cache after an edit/register so the PNG re-renders.
-  img.src = `/studio/api/render/${encodeURIComponent(state.widget!.key)}.png?size=${size}&t=${state.version}`;
+  // The cell options go along so the PNG shows the configured state, as the
+  // interactive tier does. ?t= busts the browser cache after an edit/register.
+  const query = new URLSearchParams({
+    size,
+    opts: JSON.stringify(state.options),
+    t: String(state.version),
+  });
+  img.src = `/studio/api/render/${encodeURIComponent(state.widget!.key)}.png?${query}`;
   img.onerror = () =>
     setNote("Faithful render failed (needs the widget registered and Tesserae in debug mode).", "err");
   img.onload = () => {
